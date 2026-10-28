@@ -124,3 +124,16 @@ def test_analysis_returns_local_peaks_and_energy_semantics():
     assert all(result["peaks"][i]["value"] >= result["peaks"][i-1]["value"] for i in range(1,len(result["peaks"]))) is False or len(result["peaks"]) > 1
     assert result["summary"]["energy_semantics"] == "interval kWh multiplied by supplied tariff"
     assert result["summary"]["tariff_per_kwh"] == 8
+
+
+def test_followup_previous_day_compares_equal_active_window_and_slow_replay():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    client.post(f"/api/sessions/{session['id']}/focus", json={"start":48,"end":72})
+    response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Compare that with the previous day"}).json()
+    comparison = response["analysis"]["comparison"]
+    assert comparison["aligned_points"] == 24
+    assert comparison["period_a"] == {"start":24,"end":48}
+    assert comparison["period_b"] == {"start":48,"end":72}
+    replay = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Replay that interval slowly"}).json()
+    assert replay["session"]["playback_speed"] == 0.5
+    assert replay["analysis"]["range"] == {"start":24,"end":72}

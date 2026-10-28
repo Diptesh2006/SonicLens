@@ -130,6 +130,7 @@ class VoiceSession(BaseModel):
     mode: Literal["trend", "anomaly", "comparison"]
     focus_start: int = 0
     focus_end: int | None = None
+    last_analysis_id: str | None = None
     playback_speed: float = 1
     turns: list[SessionTurn] = []
 
@@ -320,6 +321,8 @@ def analyze(request: AnalyzeRequest):
         raise HTTPException(422, "Metric is not present in this dataset")
     end = min(request.end or len(dataset.samples), len(dataset.samples))
     start = max(request.start, 0)
+    if start >= len(dataset.samples) or end <= start:
+        raise HTTPException(422, "Selected range must include at least one existing observation")
     selected = dataset.samples[start:end]
     values = [s.values[request.metric] for s in selected if request.metric in s.values]
     if not values:
@@ -351,8 +354,9 @@ def analyze(request: AnalyzeRequest):
     else:
         focus.update(range(start, end))
     cost = round(sum(values)*request.tariff, 2) if dataset.domain == "energy" and request.metric == "usage_kwh" else None
-    plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if index < len(dataset.samples)]
-    return {"analysis_id": f"ana-{uuid4().hex[:10]}", "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
+    analysis_id = f"ana-{uuid4().hex[:10]}"
+    plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end]
+    return {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
 
 
 @app.post("/api/sessions", response_model=VoiceSession)
@@ -412,14 +416,23 @@ def query_session(request: QueryRequest):
     speed_match = re.search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
     if speed_match:
         session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
-    if "previous day" in normalized or "yesterday" in normalized:
-        session.focus_start = max(0, session.focus_start - 24)
     end = session.focus_end or len(dataset.samples)
-    result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=session.focus_start, end=end, tariff=request.tariff))
+    start = session.focus_start
+    compare_previous = "previous day" in normalized or "yesterday" in normalized
+    if compare_previous:
+        duration = max(1, end-start)
+        start = max(0, start-duration)
+        end = min(len(dataset.samples), start+duration*2)
+    elif any(word in normalized for word in ("replay", "play that", "same interval", "that interval")) and session.last_analysis_id:
+        prior = next((turn for turn in reversed(session.turns) if turn.role == "assistant" and turn.analysis_id == session.last_analysis_id), None)
+        if prior:
+            # Retain the current validated focus; the phrase changes playback intent, not evidence.
+            session.playback_speed = 0.5 if "slow" in normalized else session.playback_speed
+    result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=start, end=end, tariff=request.tariff))
     session.metric = request.metric
     session.focus_end = result["range"]["end"]
-    if result["events"]:
-        session.focus_start = result["events"][0]["index"]
+    session.focus_start = result["range"]["start"]
+    session.last_analysis_id = result["analysis_id"]
     session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=explain_result(result), analysis_id=result["analysis_id"])])
     session.turns = session.turns[-40:]
     save_session(session)
