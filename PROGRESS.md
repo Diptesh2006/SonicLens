@@ -30,8 +30,9 @@ The API reads server configuration from the repository-root `.env` at startup. A
 ## Verification evidence
 
 - 29 October 2026: production browser loaded the seeded energy dataset with “VOICE READY”; typed “Find unusual spikes” returned the calculated 2.35 kWh peak with a persisted evidence ID.
+- Browser microphone simulation exercised AudioWorklet capture, silence-based stop, 16 kHz PCM request construction, transcript/answer rendering, and spoken-answer replay control; the voice API response was stubbed for this UI check. Silent input timed out with a retry message and sent no request. Browser console had no errors or deprecation warnings.
 - Desktop browser at 1365×900 and mobile at 390×844: primary voice action, chart and energy summary were visible; document width matched viewport width; browser console had zero errors or warnings.
-- The voice-first question, transcript, grounded answer and replay UI were reviewed in the mobile screenshot. Browser microphone capture/output was not exercised.
+- The voice-first question, transcript, grounded answer and replay UI were reviewed in the mobile screenshot. Real-device microphone capture/output and the browser-to-live-Gnani round trip remain unverified.
 - `python -m pytest test_api.py -q`: 28 passed.
 - `npm run typecheck`: pass.
 - `npm run build`: pass; routes prerendered, favicon included.

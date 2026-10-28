@@ -13,36 +13,49 @@ async function capturePcm(onStart: () => void): Promise<{ audioBase64: string; s
   let stream: MediaStream | undefined;
   let context: AudioContext | undefined;
   let source: MediaStreamAudioSourceNode | undefined;
-  let processor: ScriptProcessorNode | undefined;
+  let processor: AudioWorkletNode | undefined;
   let silent: GainNode | undefined;
+  let workletUrl: string | undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     context = new AudioContext({ sampleRate: 16000 });
     if (context.state === "suspended") await context.resume();
+    if (!context.audioWorklet) throw new Error("This browser cannot process microphone audio. Try the typed question option.");
+    workletUrl = URL.createObjectURL(new Blob([`class SoniclensCapture extends AudioWorkletProcessor {
+      constructor() { super(); this.startedAt = currentTime; this.lastSpeechAt = currentTime; this.detectedSpeech = false; }
+      process(inputs) {
+        const samples = inputs[0]?.[0];
+        if (!samples) { this.port.postMessage({ done: true, detectedSpeech: false }); return false; }
+        let power = 0;
+        for (let i = 0; i < samples.length; i += 4) power += samples[i] * samples[i];
+        const rms = Math.sqrt(power / Math.ceil(samples.length / 4));
+        if (rms > 0.012) { this.detectedSpeech = true; this.lastSpeechAt = currentTime; }
+        const copy = new Float32Array(samples);
+        this.port.postMessage({ samples: copy }, [copy.buffer]);
+        const elapsed = (currentTime - this.startedAt) * 1000;
+        if ((this.detectedSpeech && (currentTime - this.lastSpeechAt) * 1000 > 900) || elapsed > 10000 || (!this.detectedSpeech && elapsed > 5000)) {
+          this.port.postMessage({ done: true, detectedSpeech: this.detectedSpeech });
+          return false;
+        }
+        return true;
+      }
+    }
+    registerProcessor("soniclens-capture", SoniclensCapture);`], { type: "text/javascript" }));
+    await context.audioWorklet.addModule(workletUrl);
     source = context.createMediaStreamSource(stream);
-    processor = context.createScriptProcessor(4096, 1, 1);
+    processor = new AudioWorkletNode(context, "soniclens-capture");
     silent = context.createGain();
     silent.gain.value = 0;
     source.connect(processor);
     processor.connect(silent);
     silent.connect(context.destination);
     const chunks: Float32Array[] = [];
-    const startedAt = performance.now();
-    let lastSpeechAt = startedAt;
-    let detectedSpeech = false;
     onStart();
-    await new Promise<void>(resolve => {
-      const finish = () => { processor!.onaudioprocess = null; resolve(); };
-      processor!.onaudioprocess = event => {
-        const samples = event.inputBuffer.getChannelData(0);
-        const copy = new Float32Array(samples);
-        chunks.push(copy);
-        let power = 0;
-        for (let i = 0; i < samples.length; i += 4) power += samples[i] * samples[i];
-        const rms = Math.sqrt(power / Math.ceil(samples.length / 4));
-        const now = performance.now();
-        if (rms > 0.012) { detectedSpeech = true; lastSpeechAt = now; }
-        if ((detectedSpeech && now - lastSpeechAt > 900) || now - startedAt > 10_000 || (!detectedSpeech && now - startedAt > 5_000)) finish();
+    const detectedSpeech = await new Promise<boolean>((resolve, reject) => {
+      processor!.onprocessorerror = () => reject(new Error("Microphone audio processing failed. Try again or use the typed question option."));
+      processor!.port.onmessage = event => {
+        if (event.data.samples) chunks.push(event.data.samples as Float32Array);
+        if (event.data.done) { processor!.port.onmessage = null; processor!.onprocessorerror = null; resolve(Boolean(event.data.detectedSpeech)); }
       };
     });
     if (!detectedSpeech) throw new Error("I didn’t catch any speech. Check your microphone and try again.");
@@ -59,11 +72,13 @@ async function capturePcm(onStart: () => void): Promise<{ audioBase64: string; s
     for (let i = 0; i < pcm.length; i += 0x8000) binary += String.fromCharCode(...pcm.subarray(i, Math.min(i + 0x8000, pcm.length)));
     return { audioBase64: btoa(binary), sampleRate: 16000 };
   } finally {
+    if (processor) processor.port.close();
     processor?.disconnect();
     source?.disconnect();
     silent?.disconnect();
     stream?.getTracks().forEach(track => track.stop());
     if (context && context.state !== "closed") await context.close();
+    if (workletUrl) URL.revokeObjectURL(workletUrl);
   }
 }
 
