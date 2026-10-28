@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import math
 import os
+import re
 import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
@@ -79,7 +79,7 @@ def init_db() -> None:
         db.execute("CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
         for dataset in seeds().values():
-            db.execute("INSERT OR IGNORE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
+            db.execute("INSERT OR REPLACE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
 
 
 init_db()
@@ -87,7 +87,7 @@ init_db()
 
 def load_datasets() -> dict[str, Dataset]:
     with connect_db() as db:
-        return {row["id"]: Dataset.model_validate_json(row["payload"]) for row in db.execute("SELECT id,payload FROM datasets")}
+        return {row["id"]: Dataset.model_validate_json(row["payload"]) for row in db.execute("SELECT id,payload FROM datasets ORDER BY id")}
 
 
 def save_dataset(dataset: Dataset) -> None:
@@ -258,7 +258,7 @@ def query_session(request: QueryRequest):
         session.mode = "anomaly"
     elif any(word in normalized for word in ("trend", "overall", "everything")):
         session.mode = "trend"
-    speed_match = __import__("re").search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
+    speed_match = re.search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
     if speed_match:
         session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
     if "previous day" in normalized or "yesterday" in normalized:
