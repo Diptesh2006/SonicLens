@@ -1,22 +1,15 @@
 # Test results
 
-Results updated 2026-10-29. Commands ran from this Windows/OneDrive checkout.
+Updated 2026-10-29. Source changes were made in a D: build copy because the C: system drive had almost no free space; source and documentation still need synchronization to the original checkout before commit.
 
-## Latest verification
+## Current verification
 
-- `python -m pytest test_api.py -q` in `apps/api`: **PASS**, 28 passed.
-- `npm run typecheck` in `apps/web`: **PASS**.
-- `npm run build` in `apps/web`: **PASS**, production routes `/`, `/_not-found`, and `/icon.svg` generated.
-- Production API and web app started at `http://localhost:8000` and `http://localhost:3000`.
-- Browser verified energy/telemetry switch, trend/anomaly/comparison selection, aligned comparison evidence, chart cursor and play/pause/resume/stop, 2× playback rate, silent zero-volume playback, range updates and evidence retrieval.
-- CSV browser journey imported 3 rows with one missing value. The source table showed that missing row; setting `kWh` and `interval_energy` enabled the correct ₹28.80 estimate for the two observed values at ₹8/kWh.
-- Mobile viewport 390×844: main controls/evidence remained visible, document width matched the viewport, screenshot visually reviewed.
-- Final production browser console: **0 errors, 0 warnings**.
+- `python -m pytest test_api.py -q` in `apps/api`: 28 passed before adding two presentation assertions; after adding the assertions, one expectation was corrected from `bar` to `area` for anomaly scenes. Final rerun pending.
+- `npm run typecheck` in `apps/web`: PASS, exit 0.
+- `npm run build` in `apps/web`: PASS, optimized Next.js production build completed and static routes generated.
+- Scene restoration API coverage added: second scene can be created, an earlier scene restored, and the current scene persists in session storage. Included in pending final pytest rerun.
+- This turn did not perform a browser E2E or live provider call. Physical microphone, speaker audibility and demo recording remain unverified on the user device.
 
-## Limitations
+## Prior evidence
 
-- Authenticated provider path was subsequently verified: local spoken PCM → Prisma transcript (“Find unusual spikes”, `en-IN`) → anomaly analysis (largest observation 114, 2.35 kWh) → Timbre WAV (`RIFF`). `/api/health` reports the providers configured, the browser enables its microphone button, and the browser console has no errors/warnings.
-- Physical speaker/headphone audibility was not independently assessed.
-- Physical microphone capture/output and a recorded demo artifact have not been independently verified.
-
-Earlier development notes recorded build and browser failures caused by the incomplete dependency tree and stale temporary server. Those were resolved: the production build and browser checks above ran successfully against the current checkout.
+Earlier verification documented in git history includes 28 API tests, desktop/mobile browser inspection, synthetic fixture analysis, and live Prisma/Timbre calls using generated PCM fixtures. Those checks are not repeated by the current source change and do not substitute for physical microphone testing.

@@ -56,7 +56,25 @@ def test_sessions_persist_and_query_updates_analysis():
     assert body["analysis"]["mode"] == "anomaly"
     assert body["answer"] and body["analysis"]["analysis_id"]
     assert body["session"]["turns"][-1]["analysis_id"] == body["analysis"]["analysis_id"]
+    assert body["presentation"]["scene"]["analysis_id"] == body["analysis"]["analysis_id"]
+    assert body["presentation"]["scene"]["evidence_ids"] == [body["analysis"]["analysis_id"]]
+    assert body["presentation"]["scene"]["chart_type"] == "area"
+    assert body["session"]["goal"] == "Find unusual spikes"
+    assert [step["id"] for step in body["presentation"]["steps"]] == ["inspect_dataset", "calculate_analysis", "attach_evidence", "prepare_scene"]
     assert client.get(f"/api/sessions/{session['id']}").json()["id"] == session["id"]
+
+
+def test_presentation_scene_is_persisted_and_can_be_restored():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    first = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Find unusual spikes"}).json()
+    second = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Compare with yesterday"}).json()
+    assert len(second["presentation"]["scenes"]) == 2
+    restored = client.post(f"/api/sessions/{session['id']}/scenes/{first['presentation']['scene']['scene_id']}")
+    assert restored.status_code == 200
+    body = restored.json()
+    assert body["analysis"]["analysis_id"] == first["analysis"]["analysis_id"]
+    assert body["presentation"]["scene"]["scene_id"] == first["presentation"]["scene"]["scene_id"]
+    assert client.get(f"/api/sessions/{session['id']}").json()["current_scene_id"] == first["presentation"]["scene"]["scene_id"]
 
 
 def test_comparison_pairs_same_offsets_and_exposes_differences():

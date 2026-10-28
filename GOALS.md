@@ -4,31 +4,36 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 
 | ID | Acceptance criterion | Status | Verification / evidence |
 |---|---|---|---|
-| DOD-01 | Documented local frontend and API startup | PASS | README startup commands used to launch API on 8000 and production web app on 3000 |
-| DOD-02 | Bounded CSV import, UTC normalization, ordering, duplicate/non-finite validation, missing-value and editable unit handling | PASS | 28 API tests pass, including CSV ordering, duplicate timestamps, Infinity, missing rows, and persistent unit edits; limits 10 MB/50k rows |
-| DOD-03 | Synthetic energy and telemetry datasets | PASS | Browser loaded 168 energy and 144 telemetry observations after deterministic reset |
-| DOD-04 | Chart shows backend observations and selected metric/range | PASS | Browser range changed energy coverage 168→48; dataset switch showed telemetry latency and its range-specific values |
-| DOD-05 | Summary, local peaks, outlier, abrupt-change and aligned period comparison | PASS | API tests verify computed values; browser comparison returned 84 aligned time-of-day pairs |
-| DOD-06 | Energy cost uses labeled tariff and confirmed interval kWh; never treats kW as kWh | PASS | API tests cover seed tariff, explicit CSV kWh confirmation and no estimate for kW power samples |
-| DOD-07 | Browser generates data-mapped trend audio | PASS | Production browser generated sonification after a user gesture; play state, timeline progress and reading timestamp advanced, and Stop restored the ready state. Physical speaker/headphone audibility remains unverified |
-| DOD-08 | Anomaly mode focuses detected intervals | PASS | Browser selected anomaly mode; persisted analysis returned event focus; playback controls operated |
-| DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | 84 aligned energy pairs verified in browser; comparison playback cursor advances over paired indices and uses signed difference pitch mapping |
-| DOD-10 | Playback controls, focus range, rate, volume | PASS | Browser verified play, pause, resume, stop and range; speed set to 2×, volume set to 0 and cursor still advanced silently |
-| DOD-11 | Chart cursor tracks scheduled notes | PASS | Browser timeline timestamp advanced during playback in trend/comparison flows |
-| DOD-12 | Constrained natural-language intent routes analysis | PASS | 28 API tests cover English/Hinglish intents, aliases, cost and clarification |
-| DOD-13 | Follow-up context resolution | PASS | API tests verify previous-period alignment, replay speed, persisted turns and unsupported-cause refusal |
-| DOD-14 | Results have inspectable, persistent evidence IDs and source samples | PASS | API verifies storage/retrieval; browser expanded table with 168 source rows matching first/last persisted UTC timestamps |
-| DOD-15 | Authentic server-side Gnani Prisma adapter | PASS | Authenticated live Prisma call transcribed a spoken test clip as “Find unusual spikes” and detected `en-IN` |
-| DOD-16 | Authentic server-side Gnani Timbre adapter | PASS | Two authenticated live calls returned RIFF WAV audio; response latency was reported by the service |
-| DOD-17 | Live Gnani microphone-to-spoken-answer journey | PASS | Browser AudioWorklet captured 16 kHz PCM from a Gnani-generated English speech fixture; live Prisma transcribed it, deterministic analysis returned the 2.35 kWh spike, and live Timbre returned a replayable answer; silent input timed out without sending a request. Physical microphone/device check remains outstanding |
-| DOD-18 | Hindi-English spoken request verified | PASS | Live Timbre-generated code-mixed “Sirf unusual consumption spikes sunao” passed through browser capture and Prisma as “Surf unusual consumption spikes soon”; constrained intent selected anomaly analysis and grounded the 2.35 kWh result |
-| DOD-19 | Actionable upload and API errors | PASS | 28 API tests cover invalid schema, duplicates, non-finite values, invalid metrics/ranges and voice errors |
-| DOD-20 | Synthetic data and local audio labels are honest | PASS | Browser confirmed synthetic fixture labels, unconfigured voice label and no synthetic badge on CSV uploads by implementation |
-| DOD-21 | Responsive desktop and mobile layout | PASS | Production browser at 1365×900 and 390×844 showed the voice prompt, chart and energy summary; document width matched viewport; mobile screenshot visually reviewed |
-| DOD-22 | Server-side keys, bounded uploads, constrained operations | PASS | API tests confirm missing credentials and limits; voice keys are read server-side and operation routing is bounded |
-| DOD-23 | Backend tests, frontend typecheck and production build | PASS | 29 Oct 2026: `python -m pytest test_api.py -q` 28 passed; TypeScript `--noEmit --incremental false` and `next build` exit 0 |
-| DOD-24 | Browser end-to-end seeded exploration | PASS | 29 Oct 2026 production browser loaded seeded energy, typed “Find unusual spikes” returned the calculated 2.35 kWh peak with an evidence ID; desktop/mobile widths checked; console had 0 errors and warnings |
-| DOD-25 | Repeatable demo recording flow | IN_PROGRESS | Resettable browser walkthrough works; audio capture recording was not produced in this environment |
-| DOD-26 | Setup, architecture, API, voice, audio and demo docs | PASS | README, architecture, API, Gnani setup, sonification, demo and sound evaluation docs reviewed and updated against current implementation |
-| DOD-27 | Energy and telemetry share engine | PASS | Browser switched energy→telemetry and analysis updated to the telemetry metric without errors |
-| DOD-28 | Blinded sound-value evaluation exists without efficacy claims | PASS | `docs/SOUND_EVALUATION.md` specifies randomized clips, blinded answer key and cautious reporting; no results are claimed |
+| DOD-01 | Local documented frontend/API setup | PASS | Existing README commands; fresh setup not re-run this turn |
+| DOD-02 | Bounded CSV import and explicit units | PASS | Existing 28 API tests cover limits, timezone, duplicate/non-finite values and missing rows |
+| DOD-03 | Synthetic energy and telemetry datasets | PASS | Existing API/browser verification; 168 and 144 observations |
+| DOD-04 | Charts show backend values and ranges | IN_PROGRESS | Scene-driven area/bar renderer typechecked and production-built; browser scene behavior not rechecked this turn |
+| DOD-05 | Deterministic summary/anomaly/comparison calculations | PASS | Existing API suite; energy and telemetry share analysis route |
+| DOD-06 | Explicit interval-kWh cost semantics | PASS | Existing API tests cover confirmed units and kW exclusion |
+| DOD-07–11 | Supplementary sonification and controls | IN_PROGRESS | Existing browser evidence; Audio Lab moved into disclosure, not rechecked in browser |
+| DOD-12 | Voice goal routes to bounded analysis and presentation | IN_PROGRESS | New API assertions added for goal, four executed steps, scene, evidence ID and chart mode; final pytest pending |
+| DOD-13 | Dataset-aware follow-up context | IN_PROGRESS | Prior tests cover comparison and playback follow ups; new scene history not browser verified |
+| DOD-14 | Spoken answers link to persistent inspectable evidence | IN_PROGRESS | Scene evidence points to saved analysis and API restore coverage added; final suite pending |
+| DOD-15–16 | Authenticated Prisma and Timbre adapters | PASS | Prior real provider requests recorded in previous evidence; not re-exercised this turn |
+| DOD-17 | Physical mic → Prisma → analysis → Timbre → audible reply | IN_PROGRESS | Generated audio fixture proved provider chain earlier; physical user microphone/speaker still unverified |
+| DOD-18 | Hindi-English spoken request | PASS (fixture only) | Prior generated code-mixed audio fixture transcribed and routed; real speaker utterance remains unverified |
+| DOD-19 | Voice interruption and stale-result safety | IN_PROGRESS | Mic remains enabled during playback, pauses narration, generation guards stale frontend responses; browser check pending and provider in-flight work is not cancellable |
+| DOD-20 | Honest synthetic/provenance labels | IN_PROGRESS | Copy generalized and seeded data still marked synthetic; browser review pending |
+| DOD-21 | Responsive interface | IN_PROGRESS | Previous viewport checks predate this UI change; repeat browser review pending |
+| DOD-22 | Server-only secrets and bounded operations | PASS | Existing API validation and environment handling; no secrets copied into source |
+| DOD-23 | API suite, frontend typecheck and production build | IN_PROGRESS | Typecheck/build pass on D: copy; final API rerun pending |
+| DOD-24 | Browser voice → scene → follow-up → restore journey | IN_PROGRESS | Not exercised in browser this turn |
+| DOD-25 | Repeatable voice-led demo | IN_PROGRESS | Walkthrough updated; physical recording not captured |
+| DOD-26 | Product, presentation, API and demo documentation | IN_PROGRESS | README, PRD, architecture, API, demo, progress, decisions and test evidence updated; final review pending |
+| DOD-27 | Shared engine for energy, telemetry and CSV | PASS | Existing API contract and UI path; product copy now general |
+| DOD-28 | Blinded listening study without efficacy claims | PASS | Existing protocol retained; no study outcome claimed |
+
+## Current slice acceptance
+
+- [x] Scene schema validates dataset, metric and saved analysis linkage.
+- [x] Session persists goal, state, steps, current scene and up to 20 scenes.
+- [x] Query response supplies the scene, history and executed investigation steps.
+- [x] Scene restore validates evidence and updates active metric/mode/range.
+- [x] Frontend maps area/bar scene to the live chart and renders step/history navigation.
+- [x] Voice capture can interrupt local narration; generation tokens reject stale browser results.
+- [ ] Final API suite, browser inspection, original checkout sync, conventional commit and push.

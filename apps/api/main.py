@@ -137,6 +137,30 @@ class SessionTurn(BaseModel):
     analysis_id: str | None = None
 
 
+class InvestigationStep(BaseModel):
+    id: Literal["inspect_dataset", "calculate_analysis", "attach_evidence", "prepare_scene"]
+    label: str
+
+
+SceneKind = Literal["dataset_overview", "trend_inspection", "anomaly_spotlight", "period_comparison", "numerical_evidence", "finding_summary"]
+
+
+class PresentationScene(BaseModel):
+    scene_id: str
+    kind: SceneKind
+    title: str
+    dataset_id: str
+    analysis_id: str
+    metric: str
+    chart_type: Literal["area", "bar"]
+    interval: dict[str, int]
+    highlight_indices: list[int] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    narration: str
+    follow_up_actions: list[str] = Field(default_factory=list)
+    created_at: str
+
+
 class VoiceSession(BaseModel):
     id: str
     dataset_id: str
@@ -147,6 +171,11 @@ class VoiceSession(BaseModel):
     last_analysis_id: str | None = None
     playback_speed: float = 1
     turns: list[SessionTurn] = []
+    goal: str | None = None
+    state: Literal["IDLE", "PLANNING", "ANALYZING", "PRESENTING", "AWAITING_USER", "INTERRUPTED", "ERROR"] = "IDLE"
+    investigation_steps: list[InvestigationStep] = Field(default_factory=list)
+    scenes: list[PresentationScene] = Field(default_factory=list)
+    current_scene_id: str | None = None
 
 
 class QueryRequest(BaseModel):
@@ -266,6 +295,51 @@ def get_session(session_id: str) -> VoiceSession:
 def save_session(session: VoiceSession) -> None:
     with connect_db() as db:
         db.execute("INSERT OR REPLACE INTO sessions(id,payload) VALUES(?,?)", (session.id, session.model_dump_json()))
+
+
+def load_analysis(analysis_id: str) -> dict:
+    with connect_db() as db:
+        row = db.execute("SELECT payload FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Analysis evidence not found")
+    return json.loads(row["payload"])
+
+
+def create_scene(session: VoiceSession, dataset: Dataset, result: dict, kind: SceneKind, narration: str) -> PresentationScene:
+    analysis_id = result["analysis_id"]
+    saved = load_analysis(analysis_id)
+    if saved.get("dataset_id") != dataset.id or result.get("metric") not in dataset.metrics:
+        raise HTTPException(422, "Presentation scene does not match the analyzed dataset")
+    valid_indices = set(range(result["range"]["start"], result["range"]["end"]))
+    highlights = [index for index in result["focus_indices"] if index in valid_indices]
+    scene_titles = {
+        "dataset_overview": f"Overview · {dataset.name}",
+        "trend_inspection": f"Trend · {dataset.name}",
+        "anomaly_spotlight": f"Unusual readings · {dataset.name}",
+        "period_comparison": f"Period comparison · {dataset.name}",
+        "numerical_evidence": f"Exact readings · {dataset.name}",
+        "finding_summary": f"Finding · {dataset.name}",
+    }
+    scene = PresentationScene(
+        scene_id=f"scene-{uuid4().hex[:10]}", kind=kind, title=scene_titles[kind],
+        dataset_id=dataset.id, analysis_id=analysis_id, metric=result["metric"],
+        chart_type="bar" if kind in {"period_comparison", "numerical_evidence"} else "area",
+        interval=result["range"], highlight_indices=highlights, evidence_ids=[analysis_id],
+        narration=narration, follow_up_actions=["Show exact readings", "Compare with the previous day", "Show the overall trend"],
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    if any(evidence_id != analysis_id for evidence_id in scene.evidence_ids):
+        raise HTTPException(422, "Presentation scene references unknown evidence")
+    session.scenes.append(scene)
+    session.scenes = session.scenes[-20:]
+    session.current_scene_id = scene.scene_id
+    session.state = "AWAITING_USER"
+    return scene
+
+
+def presentation_payload(session: VoiceSession, scene: PresentationScene | None = None) -> dict:
+    selected = scene or next((item for item in session.scenes if item.scene_id == session.current_scene_id), None)
+    return {"scene": selected, "scenes": session.scenes, "steps": session.investigation_steps, "state": session.state}
 
 
 @app.get("/api/health")
@@ -476,6 +550,27 @@ def read_session(session_id: str):
     return get_session(session_id)
 
 
+@app.post("/api/sessions/{session_id}/scenes/{scene_id}")
+def restore_scene(session_id: str, scene_id: str):
+    session = get_session(session_id)
+    scene = next((item for item in session.scenes if item.scene_id == scene_id), None)
+    if not scene or scene.dataset_id != session.dataset_id:
+        raise HTTPException(404, "Presentation scene not found in this session")
+    dataset = load_datasets().get(scene.dataset_id)
+    if not dataset or scene.metric not in dataset.metrics:
+        raise HTTPException(422, "Presentation scene references an unavailable dataset metric")
+    analysis = load_analysis(scene.analysis_id)
+    if analysis.get("dataset_id") != scene.dataset_id or scene.analysis_id not in scene.evidence_ids:
+        raise HTTPException(422, "Presentation scene evidence is invalid")
+    session.current_scene_id = scene.scene_id
+    session.metric = scene.metric
+    session.mode = analysis["mode"]
+    session.focus_start, session.focus_end = scene.interval["start"], scene.interval["end"]
+    session.state = "AWAITING_USER"
+    save_session(session)
+    return {"session": session, "analysis": analysis, "answer": scene.narration, "presentation": presentation_payload(session, scene), "provider": "saved_scene"}
+
+
 @app.post("/api/voice/query")
 def query_session(request: QueryRequest):
     session = get_session(request.session_id)
@@ -483,6 +578,7 @@ def query_session(request: QueryRequest):
         # A dataset switch clears old referents and binds subsequent turns to the active source.
         session.dataset_id, session.metric, session.mode = request.dataset_id, request.metric, "trend"
         session.focus_start, session.focus_end = 0, None
+        session.scenes, session.current_scene_id = [], None
     dataset = load_datasets().get(session.dataset_id)
     if not dataset:
         raise HTTPException(404, "Dataset not found")
@@ -490,6 +586,25 @@ def query_session(request: QueryRequest):
         raise HTTPException(422, "Metric is not present in this dataset")
     text = request.text.strip()
     normalized = text.casefold()
+    if any(phrase in normalized for phrase in ("go back", "previous chart", "previous scene", "show the previous")):
+        current_index = next((index for index, scene in enumerate(session.scenes) if scene.scene_id == session.current_scene_id), len(session.scenes))
+        if current_index <= 0:
+            session.state = "AWAITING_USER"
+            session.goal = text
+            save_session(session)
+            return {"session": session, "analysis": None, "answer": "There isn't an earlier presentation to return to yet.", "clarification": {"needed": True, "prompt": "Ask me to inspect a trend, an unusual reading, or a comparison.", "choices": ["Give me an overview", "Find unusual spikes", "Compare with yesterday"]}, "presentation": presentation_payload(session), "provider": "deterministic_local_tools"}
+        scene = session.scenes[current_index - 1]
+        analysis = load_analysis(scene.analysis_id)
+        session.current_scene_id = scene.scene_id
+        session.metric, session.mode = scene.metric, analysis["mode"]
+        session.focus_start, session.focus_end = scene.interval["start"], scene.interval["end"]
+        session.goal, session.state = text, "AWAITING_USER"
+        session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=scene.narration, analysis_id=scene.analysis_id)])
+        session.turns = session.turns[-40:]
+        save_session(session)
+        return {"session": session, "analysis": analysis, "answer": scene.narration, "clarification": {"needed": False}, "presentation": presentation_payload(session, scene), "provider": "deterministic_local_tools"}
+    session.goal, session.state = text, "PLANNING"
+    session.investigation_steps = [InvestigationStep(id="inspect_dataset", label=f"Checked {dataset.name} and metric {request.metric}")]
     previous = session.turns[-1].text.casefold() if session.turns and session.turns[-1].role == "assistant" else ""
     has_context = bool(session.last_analysis_id and previous)
     metric_aliases = {"latency": "latency_ms", "errors": "error_count", "error": "error_count", "requests": "request_count", "usage": "usage_kwh", "consumption": "usage_kwh"}
@@ -501,12 +616,16 @@ def query_session(request: QueryRequest):
             return {"session": session, "analysis": None, "answer": "Cost can only be calculated from interval energy in kWh with a supplied tariff.", "clarification": {"needed": True, "prompt": "Select an energy dataset and enter a tariff per kWh.", "choices": []}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
         request = request.model_copy(update={"metric": "usage_kwh"})
     if any(term in normalized for term in ("why", "cause", "caused", "reason")):
-        return {"session": session, "analysis": None, "answer": "The measurements show what changed, but they do not identify why it changed.", "clarification": {"needed": True, "prompt": "I can show the evidence around the change. What would you like to inspect?", "choices": ["Find unusual spikes", "Compare with the previous period", "Show the trend"]}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+        session.state = "AWAITING_USER"
+        session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text="The measurements show what changed, but they do not identify why it changed.")])
+        session.turns = session.turns[-40:]
+        save_session(session)
+        return {"session": session, "analysis": None, "answer": "The measurements show what changed, but they do not identify why it changed.", "clarification": {"needed": True, "prompt": "I can show the evidence around the change. What would you like to inspect?", "choices": ["Find unusual spikes", "Compare with the previous period", "Show the trend"]}, "presentation": presentation_payload(session), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
     if any(term in normalized for term in ("compare", "difference", "previous day", "yesterday", "compare that", "other metric")):
         session.mode = "comparison"
     elif any(term in normalized for term in ("anomal", "spike", "unusual", "increase sharply", "increased sharply", "increased", "increasing")):
         session.mode = "anomaly"
-    elif any(term in normalized for term in ("trend", "overall", "everything", "play all")):
+    elif any(term in normalized for term in ("trend", "overall", "everything", "play all", "overview", "summari")):
         session.mode = "trend"
     elif "cost" in normalized or "bill" in normalized or "expense" in normalized:
         session.mode = "trend"
@@ -514,7 +633,11 @@ def query_session(request: QueryRequest):
         # Replay keeps the last evidence-bearing analysis mode and selected range.
         pass
     else:
-        return {"session": session, "analysis": None, "answer": "I couldn't identify whether you want a trend, unusual events, or a comparison. Which should I analyze?", "clarification": {"needed": True, "prompt": "Choose an analysis for the active metric.", "choices": ["Play the trend", "Find unusual spikes", "Compare with the previous period"]}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+        session.state = "AWAITING_USER"
+        session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text="I couldn't identify whether you want a trend, unusual events, or a comparison.")])
+        session.turns = session.turns[-40:]
+        save_session(session)
+        return {"session": session, "analysis": None, "answer": "I couldn't identify whether you want a trend, unusual events, or a comparison. Which should I analyze?", "clarification": {"needed": True, "prompt": "Choose an analysis for the active metric.", "choices": ["Give me an overview", "Find unusual spikes", "Compare with the previous period"]}, "presentation": presentation_payload(session), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
     speed_match = re.search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
     if speed_match:
         session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
@@ -532,15 +655,31 @@ def query_session(request: QueryRequest):
         if prior:
             # Retain the current validated focus; the phrase changes playback intent, not evidence.
             session.playback_speed = 0.5 if "slow" in normalized else session.playback_speed
+    session.state = "ANALYZING"
     result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=start, end=end, tariff=request.tariff))
+    session.investigation_steps.append(InvestigationStep(id="calculate_analysis", label=f"Calculated {session.mode} analysis for {request.metric}"))
+    session.investigation_steps.append(InvestigationStep(id="attach_evidence", label=f"Attached {result['summary']['count']} source readings · {result['analysis_id']}"))
     session.metric = request.metric
     session.focus_end = result["range"]["end"]
     session.focus_start = result["range"]["start"]
     session.last_analysis_id = result["analysis_id"]
-    session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=explain_result(result), analysis_id=result["analysis_id"])])
+    answer = explain_result(result)
+    if any(term in normalized for term in ("exact", "evidence", "actual values", "show the numbers", "readings behind")):
+        scene_kind: SceneKind = "numerical_evidence"
+    elif any(term in normalized for term in ("overview", "summari")):
+        scene_kind = "dataset_overview"
+    elif session.mode == "anomaly":
+        scene_kind = "anomaly_spotlight"
+    elif session.mode == "comparison":
+        scene_kind = "period_comparison"
+    else:
+        scene_kind = "trend_inspection"
+    session.investigation_steps.append(InvestigationStep(id="prepare_scene", label=f"Prepared {scene_kind.replace('_', ' ')} scene"))
+    scene = create_scene(session, dataset, result, scene_kind, answer)
+    session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=answer, analysis_id=result["analysis_id"])])
     session.turns = session.turns[-40:]
     save_session(session)
-    return {"session": session, "analysis": result, "answer": explain_result(result), "clarification": {"needed": False}, "provider": "deterministic_local_tools", "voice_status": "configured" if gnani_ready() else "unconfigured"}
+    return {"session": session, "analysis": result, "answer": answer, "clarification": {"needed": False}, "presentation": presentation_payload(session, scene), "provider": "deterministic_local_tools", "voice_status": "configured" if gnani_ready() else "unconfigured"}
 
 
 @app.post("/api/voice/speak")

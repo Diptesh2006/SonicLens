@@ -1,14 +1,22 @@
-# Current demo walkthrough
+# Voice led demonstration
 
-1. Start FastAPI and Next.js using the README commands; use **Reset demo** to restore the deterministic state.
-2. Open the Energy Explorer and inspect the synthetic provenance label and chart description.
-3. Press Play to hear the energy trend; switch to Anomalies and press Play again.
-4. Adjust the selected observation range, playback rate and volume.
-5. Switch to API telemetry, choose latency or errors, and replay.
-6. Upload a CSV with ISO timestamps and numeric columns.
-7. Ask “Find unusual spikes” or “Compare the periods”; inspect the deterministic answer, analysis ID, aligned evidence and expandable timestamped source-observation table. Comparison playback sonifies paired signed differences.
-8. For imported CSV files, set the unit and sampling semantics explicitly. Energy cost remains unavailable for unconfirmed units or power samples.
+## Before the walkthrough
 
-The built-in audio preview schedules no more than 150 evenly spaced observations per play action; summaries and source evidence continue to use every selected observation. Set volume to zero for silence. Spoken audio stops the sonification player before narration begins.
+1. Start the API and web app with the README commands. Confirm `/api/health` reports voice configured and the header says **VOICE READY**.
+2. Choose **Home energy · 7 days** or **API service · 24 hours**. Both are synthetic examples; imported CSV can be used instead.
+3. Use **Reset demo** before recording a fresh walkthrough.
 
-The microphone flow requires `GNANI_API_KEY` in the API server environment. Without it, the UI labels the provider unconfigured and keeps microphone capture disabled; text prompts use deterministic local analysis tools.
+## Three minute walkthrough
+
+1. Tap the microphone and say: “Give me an overview of this dataset.” Watch the answer, four investigation steps, overview scene, chart and evidence update together.
+2. While Timbre is narrating, tap the microphone and say: “Find unusual spikes.” The first narration stops; the chart moves to the anomaly scene and highlights the calculated readings.
+3. Ask: “Compare that with the previous period.” The session keeps its dataset and metric context, and the scene switches to a comparison view.
+4. Use **Scene history** to restore the overview or anomaly scene. Confirm its analysis and evidence return with it.
+5. Ask: “Show exact readings.” Inspect the persisted timestamps and values.
+6. Open **Optional Audio Lab** to hear the selected series as supplementary sonification.
+
+For the seeded energy data, the anomaly includes the known synthetic 2.35 kWh peak. The API telemetry example uses the same flow for latency and errors. Narration is grounded in calculated observations and does not establish causality.
+
+## Input and recovery
+
+Voice requires the server side Gnani key and a browser microphone permission. If permission or provider setup is unavailable, use the typed question fallback. If the browser blocks autoplay, use **Listen** on the answer. A follow up during playback interrupts local narration; a provider request already submitted may finish server side.

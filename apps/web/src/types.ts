@@ -1,3 +1,6 @@
 export type Sample = { timestamp: string; values: Record<string, number> };
 export type Dataset = { id: string; name: string; domain: string; source: string; unit: string; metrics: string[]; metric_units?: Record<string,string>; sampling_kind?: string; missing_counts?: Record<string,number>; samples: Sample[] };
 export type Analysis = { analysis_id: string; mode: string; range: { start: number; end: number }; plan: { events: { index: number }[] }; summary: { count: number; missing_count: number; mean: number; max: number; min: number; unit: string; energy_cost: number | null }; evidence: Sample[]; comparison?: { aligned_by: string; aligned_points: number; mean_difference: number; unit: string; pairs: { index_a: number; index_b: number; delta: number }[] }; focus_indices: number[]; events: { index: number; value: number }[] };
+export type InvestigationStep = { id: string; label: string };
+export type PresentationScene = { scene_id: string; kind: string; title: string; dataset_id: string; analysis_id: string; metric: string; chart_type: "area" | "bar"; interval: { start: number; end: number }; highlight_indices: number[]; evidence_ids: string[]; narration: string; follow_up_actions: string[]; created_at: string };
+export type Presentation = { scene: PresentationScene | null; scenes: PresentationScene[]; steps: InvestigationStep[]; state: string };

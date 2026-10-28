@@ -1,22 +1,23 @@
 # Architecture
 
-The product uses a Next.js/TypeScript client and FastAPI/Python service. The client selects a dataset, metric, range and analysis mode; it renders backend observations in Recharts and requests analysis and a typed sonification plan. Browser Web Audio maps the selected plan to tones after explicit user interaction, while one playback index sequence drives the chart cursor.
+The product uses a Next.js/TypeScript client and FastAPI/Python service. Its primary interface is spoken goal setting and narrated analysis. The API resolves voice or typed requests to bounded deterministic tools, persists evidence and builds a validated presentation scene; the client updates the chart, investigation steps, scene history and evidence from that same result. Optional Web Audio sonification lives in the Audio Lab.
 
 FastAPI validates uploads and operation arguments, owns metric/unit semantics and computes numeric facts. Analysis results, datasets and voice sessions are persisted in SQLite. Each analysis includes its selected source observations and sonification plan and can be reloaded by analysis ID. Reset restores the synthetic energy and telemetry datasets and removes imported CSVs and sessions.
 
-The local text intent parser routes a bounded set of analytical requests to deterministic analysis. It does not execute model-generated code or SQL and does not invent values. Gnani Prisma STT and Timbre TTS are optional server-side providers; keys remain in the API environment and can be loaded from the repository-root `.env`. Without credentials, voice is reported unavailable and local text analysis remains usable.
+The local intent parser routes a bounded set of analytical requests to deterministic analysis. It does not execute model-generated code or SQL and does not invent values. Gnani Prisma STT and Timbre TTS provide the central voice interaction; keys remain in the API environment and can be loaded from the repository-root `.env`. Typed analysis remains available when voice is not configured.
 
 ## Data path
 
 ```text
 CSV or seeded fixture
   → FastAPI validation and SQLite
-  → deterministic analysis and evidence
-  → typed analysis/sonification plan
-  → Next.js chart, evidence table and Web Audio
+  → deterministic analysis and persisted evidence
+  → validated presentation scene and narration
+  → Next.js scene driven chart, investigation steps and history
+  → optional Web Audio sonification
 ```
 
-For voice, microphone PCM travels from the browser to the local API, then to Prisma. The recognized request selects a constrained analysis operation; Timbre receives the resulting grounded explanation. Spoken playback stops sonification first. Missing credentials and provider errors are surfaced by the API.
+For voice, microphone PCM travels from the browser to the local API, then to Prisma. The recognized request selects a constrained analysis operation; Timbre receives the resulting grounded explanation. Starting another capture interrupts local narration and prevents stale responses from replacing newer ones. See [PRESENTATION_ENGINE.md](PRESENTATION_ENGINE.md) for scene validation and session state.
 
 ## Boundaries
 
