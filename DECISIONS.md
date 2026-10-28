@@ -1,0 +1,8 @@
+# Decisions
+
+- **Initial slice is an in-memory API.** Keeping seeded datasets inspectable and the first end-to-end slice small makes analytics behavior easy to verify. SQLite persistence is still required and is a follow-up milestone.
+- **Use custom Web Audio tones.** Numeric value maps linearly to oscillator pitch; event-focused mode uses a triangle timbre while trend uses sine. No speech or external audio assets are represented as data sonification.
+- **Synthetic seeds are explicit.** Household and API series are generated deterministically and labeled synthetic in the API/UI.
+- **Voice is disabled until integrated.** No browser speech synthesis or fixture is represented as Gnani. Live STT/TTS requires a server-side provider adapter and credentials.
+- **Energy seed stores interval kWh.** The labeled ₹8/kWh demo tariff is configurable in the analysis API, and cost multiplies interval quantities directly; raw kW is not treated as energy.
+- **Comparison mode currently plays both contiguous halves.** A true aligned period-comparison analysis with physical difference semantics remains future work; current mode is labeled as a playback view.

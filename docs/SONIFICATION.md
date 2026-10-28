@@ -1,0 +1,3 @@
+# Sonification mapping
+
+Only a user click starts sound. For the selected metric, each observation maps linearly from the selected series minimum–maximum to 180–940 Hz. The value sequence determines event order; anomaly mode selects robust outliers and abrupt changes (falling back to the maximum if none are detected) and uses triangle waves, while trend uses sine waves. Comparison mode currently plays both halves of the selected range using the same scale. Each tone is enveloped to 150 ms; playback rate changes spacing, and the chart cursor follows the exact scheduled observation index. This is an exploratory mapping, not a claim that sound improves analysis.
