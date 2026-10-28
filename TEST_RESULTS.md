@@ -15,8 +15,8 @@ Results updated 2026-10-29. Commands ran from this Windows/OneDrive checkout.
 
 ## Limitations
 
-- Authenticated Prisma and Timbre requests have not been made; the owner has not configured a Gnani key in the local `.env`.
+- Authenticated provider path was subsequently verified: local spoken PCM → Prisma transcript (“Find unusual spikes”, `en-IN`) → anomaly analysis (largest observation 114, 2.35 kWh) → Timbre WAV (`RIFF`). `/api/health` reports the providers configured, the browser enables its microphone button, and the browser console has no errors/warnings.
 - Physical speaker/headphone audibility was not independently assessed.
-- A recorded demo artifact has not been captured.
+- Physical microphone capture/output and a recorded demo artifact have not been independently verified.
 
 Earlier development notes recorded build and browser failures caused by the incomplete dependency tree and stale temporary server. Those were resolved: the production build and browser checks above ran successfully against the current checkout.

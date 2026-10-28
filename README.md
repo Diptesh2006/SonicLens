@@ -59,7 +59,7 @@ Add `GNANI_API_KEY` to the repository-root `.env`; the API loads it when it star
 
 ## Known limitations
 
-- Live Gnani calls and Hindi-English microphone requests require account credentials and entitled models.
+- Live Prisma and Timbre provider calls were verified using a short local spoken test clip; the browser now reports Gnani ready. A physical microphone interaction and Hindi-English utterance still need a user-device check.
 - Browser audio scheduling and cursor behavior were exercised, but audibility on a physical speaker/headphone output was not independently evaluated.
 - The blinded listening protocol is a proposed formative test, not a completed participant study; SonicLens makes no efficacy or accessibility-validation claims.
 - A recorded end-to-end demo artifact has not yet been captured.

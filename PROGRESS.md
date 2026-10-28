@@ -4,7 +4,7 @@
 
 Core data import, deterministic analysis, three sound modes, constrained text/voice adapters, evidence persistence, and browser workspace are implemented. Production build, CSV upload, explicit unit/cost flow, 390px layout, and browser journeys pass from the actual OneDrive checkout. Remaining work is final documentation/demo review and audio capture verification; authenticated live Gnani access is unavailable in the current environment.
 
-The API now reads server configuration from the repository-root `.env` at startup. The local `.env` contains no key yet; the owner can add it without exposing the value in chat.
+The API reads server configuration from the repository-root `.env` at startup. A nonempty key was detected without printing or logging its value. Explicit Prisma and Timbre endpoints are configured in the ignored `.env`; live provider calls now pass.
 
 ## Recent product slices
 
@@ -38,10 +38,11 @@ The API now reads server configuration from the repository-root `.env` at startu
 - Mobile browser at 390×844: key controls and evidence visible; document width equaled viewport; screenshot reviewed.
 - Browser set playback to 2× and volume to 0; cursor advanced and playback stopped cleanly.
 - Final production browser console after rebuild: 0 errors and 0 warnings.
-- Live Gnani calls and physical audio-output audibility were not independently verified.
+- Live Prisma transcription, grounded anomaly analysis, and Timbre WAV synthesis succeeded using a short local spoken PCM clip; the web app reports Gnani ready and enables its mic control.
+- Physical microphone capture/output and a Hindi-English utterance were not independently verified.
 
 ## Next actions
 
 1. Final review README, architecture and Gnani setup docs for current commands and payloads.
 2. Capture a repeatable demo only if the environment can record browser audio faithfully.
-3. Reconcile goals and evidence; keep live Gnani criteria blocked unless valid credentials are configured.
+3. Reconcile goals; do not mark physical-mic or Hindi-English checks passed until exercised on the user's device.

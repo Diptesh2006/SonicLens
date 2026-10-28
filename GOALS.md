@@ -18,10 +18,10 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-12 | Constrained natural-language intent routes analysis | PASS | 28 API tests cover English/Hinglish intents, aliases, cost and clarification |
 | DOD-13 | Follow-up context resolution | PASS | API tests verify previous-period alignment, replay speed, persisted turns and unsupported-cause refusal |
 | DOD-14 | Results have inspectable, persistent evidence IDs and source samples | PASS | API verifies storage/retrieval; browser expanded table with 168 source rows matching first/last persisted UTC timestamps |
-| DOD-15 | Authentic server-side Gnani Prisma adapter | IN_PROGRESS | Official streaming adapter and mocked contract tests implemented; authenticated live request not run |
-| DOD-16 | Authentic server-side Gnani Timbre adapter | IN_PROGRESS | Official REST/WAV adapter and mocked tests implemented; authenticated live request not run |
-| DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | Local `.env` is ready but `GNANI_API_KEY` is blank; route surfaces 503 and mic is disabled |
-| DOD-18 | Hindi-English spoken request verified | BLOCKED_EXTERNAL | Requires configured key, account-entitled model, and live microphone run |
+| DOD-15 | Authentic server-side Gnani Prisma adapter | PASS | Authenticated live Prisma call transcribed a spoken test clip as “Find unusual spikes” and detected `en-IN` |
+| DOD-16 | Authentic server-side Gnani Timbre adapter | PASS | Two authenticated live calls returned RIFF WAV audio; response latency was reported by the service |
+| DOD-17 | Live Gnani microphone-to-spoken-answer journey | IN_PROGRESS | Live PCM→Prisma→anomaly analysis→Timbre path returned the grounded 2.35 kWh result and WAV; browser mic control is enabled, but physical microphone capture/output has not been exercised |
+| DOD-18 | Hindi-English spoken request verified | IN_PROGRESS | Credentials and endpoints configured; English provider round-trip passed, Hindi-English live utterance remains unverified |
 | DOD-19 | Actionable upload and API errors | PASS | 28 API tests cover invalid schema, duplicates, non-finite values, invalid metrics/ranges and voice errors |
 | DOD-20 | Synthetic data and local audio labels are honest | PASS | Browser confirmed synthetic fixture labels, unconfigured voice label and no synthetic badge on CSV uploads by implementation |
 | DOD-21 | Responsive desktop and mobile layout | PASS | Browser at 390×844 showed key controls, evidence table and chart; document scroll width remained 390 px; screenshot visually reviewed |
