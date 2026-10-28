@@ -1,41 +1,44 @@
 # SonicLens — End-to-End Product Requirements Document and Codex Execution Contract
 
-**Status:** Implementation-ready MVP specification  
-**Version:** 1.0 — 28 October 2026  
-**Product:** SonicLens — *Hear your data. Ask what matters.*  
+**Status:** Implementation-ready MVP specification; product direction updated 29 October 2026  
+**Version:** 1.1  
+**Product:** SonicLens — *Talk to your data. Watch the insights unfold.*  
 **Primary delivery:** Fully functional localhost web application, source code, documentation, deterministic test evidence, and an authentic Gnani-powered spoken demo where credentials are available.
 
 > **Codex instruction:** Treat this document as the authoritative product and engineering contract. Inspect the repository and environment first, implement the MVP from end to end, run and repair tests, visually inspect the browser application where tooling permits, and finish with explicit evidence against every acceptance criterion. Do not stop at a plan or mock UI. Work through the goal loop in §17 within your available execution session. Never claim successful live Gnani calls without actually making them.
+
+> **Product-direction update:** The user's `SonicLens — Complete Codex Master Prompt` supplied on 29 October 2026 supersedes any conflicting framing below. SonicLens is a voice-native, goal-oriented data analyst that presents validated findings through interactive visual scenes. Sonification is a secondary tool; energy remains a demonstration domain, not the product identity.
 
 ---
 
 ## 1. Product concept and user promise
 
-SonicLens is a **conversational data-audio exploration platform**. A user imports a time-series dataset, asks questions aloud in English or a supported Indian-language/code-mixed configuration, and receives **three coordinated outputs**:
+SonicLens is a **voice-native conversational data intelligence platform**. A user selects or imports a structured dataset and speaks an analytical goal. The analyst performs bounded deterministic calculations and presents the findings through coordinated outputs:
 
-1. **Grounded numerical analysis** (actual calculations, not LLM guesses).
-2. **Question-conditioned sonification** (nonverbal sounds mapped to the selected measurements or computed relationships).
-3. **Gnani-generated spoken explanations** with a synchronized visual chart and inspectable evidence.
+1. **Gnani-generated spoken explanations** that users can interrupt and redirect.
+2. **Interactive visual presentation scenes** that change the chart, highlight the relevant interval and expose supporting evidence.
+3. **Grounded numerical analysis** (actual calculations, not model guesses).
+4. Optional question-conditioned sonification as a supplementary way to inspect a trend or comparison.
 
-SonicLens does **not** claim that sounds replace charts. Its useful proposition is: *when you are exploring a dataset, you can change what you hear through natural spoken follow-ups, focus on a range or a comparison, and inspect the exact data that produced the sound*. A later monitoring mode may provide peripheral awareness while the user is working elsewhere.
+The product should feel like a data analyst presenting findings live: the analyst speaks, the relevant chart changes, evidence remains inspectable, and spoken follow-ups revise the goal without losing context. SonicLens makes no claims that narration establishes causality or replaces evidence.
 
 ### Core user problem
 
-Charts are effective but require visual attention. Existing sonification tools can play datasets, but many users need to learn mappings and manually configure the audio. SonicLens tests whether **voice-directed analytical intent + context-sensitive sonification + evidence-linked explanation** lowers the friction of exploring a selected question. It must be honest where sound offers no advantage.
+People often need to inspect several charts and reports to answer one analytical question. SonicLens tests whether **voice-directed investigation + live visual presentation + evidence-linked spoken explanation** makes that exploration more direct. Nonverbal sonification is an optional aid, not the main interaction.
 
 ### Audience and application strategy
 
 **Core platform:** General time-series datasets. No hard-coded ML training concepts in the product core.
 
-**MVP demonstration domain (primary):** Household/building electricity usage. User investigates spikes, compares days and estimates cost using an explicitly supplied tariff. Uses prepared synthetic data and CSV uploads; **no physical meter or real utility API**.
+**MVP demonstration domain:** Household/building electricity usage. User investigates spikes, compares days and estimates cost using an explicitly supplied tariff. Uses prepared synthetic data and CSV uploads; **no physical meter or real utility API**.
 
-**MVP demonstration domain (secondary):** General telemetry such as API latency/error count. This establishes platform generality. An optional ML experiment adapter may come later but **is not required** to pass MVP.
+**Second demonstration domain:** General telemetry such as API latency/error count. Both domains use the same conversational analyst, deterministic analysis and presentation engine. An optional ML experiment adapter may come later but **is not required** to pass MVP.
 
 **Future adapters, NOT launch commitments:** ML training, research data, classroom function exploration, accessibility-tested data analysis, continuous monitoring, narrated storytelling.
 
 ### Competitive positioning and accuracy
 
-Basic data sonification, audio charts, and speech-driven charts already exist; do not claim to be first. Highcharts Sonification Studio and related research are reference categories. The proposed differentiator is **voice-controlled selection of analytical question and resulting audio representation, with repeatable evidence, context and a deterministic engine**.
+Conversational analytics, voice interfaces and data presentation already exist; do not claim to be first. The proposed differentiator is a **bounded voice-led investigation that controls validated visual scenes, retains context, and grounds each spoken finding in deterministic analysis and inspectable evidence**.
 
 No claims of improved accessibility, faster anomaly detection, reduced cognitive load, or business ROI may be presented as established without real user evaluation.
 
@@ -49,14 +52,17 @@ No claims of improved accessibility, faster anomaly detection, reduced cognitive
 - FastAPI/Python API with typed schemas, SQLite persistence, and seeded demonstration datasets.
 - Upload of a valid CSV containing a time column and one or more numeric series.
 - One interactive workspace with selectable dataset, series, range and analysis mode.
-- **Three distinct deterministic audio modes:** trend, anomaly-focused, and comparison/difference.
-- Synchronized data chart, chart cursor and sound timeline; playback speed, pause, stop, volume, and replay selected range.
+- Voice-first analytical workflow with a visible listening/transcription/investigation/narration state and typed fallback.
+- Bounded, evidence-grounded analytical tools and dataset-aware conversational session memory.
+- Validated presentation scenes for overview, trend, anomaly, period comparison and numerical evidence; scenes control the actual chart and can be revisited.
+- Push-to-interrupt narration: microphone activation stops current audio and redirects the active investigation; stale requests cannot replace the newer scene.
+- Gnani-generated short spoken explanations alongside scene-specific charts and inspectable evidence.
+- Optional supplementary sonification modes: trend, anomaly-focused, and comparison/difference, with playback speed, pause, stop, volume and range.
 - Numerical analysis: descriptive stats, peaks, abrupt changes, period comparisons and aligned-series differences.
 - Conversational speech pipeline using **Gnani Prisma STT** and **Gnani Timbre TTS**.
 - A constrained intent/tool-calling layer with session context for natural follow-ups.
-- Evidence-linked spoken responses; audible speech and sonification never compete uncontrollably.
-- Primary **Energy Explorer** demo with synthetic household demand and configurable tariff.
-- Secondary **Telemetry Explorer** demo with synthetic latency and error-count series.
+- Evidence-linked spoken responses; narration and sonification never compete.
+- Voice-led **Energy** and **Telemetry** demo scenarios with synthetic data, plus custom CSV exploration.
 - Recording/replay of a complete working demo with deterministic reset.
 - Automated backend, frontend/unit and end-to-end tests; honest credential-conditional integration verification.
 
@@ -66,7 +72,7 @@ No claims of improved accessibility, faster anomaly detection, reduced cognitive
 
 ### Critical scope constraint
 
-**Only two working domain adapters are required:** `energy` and `generic_telemetry`, sharing the same dataset model and sonification pipeline. Do not implement full ML monitoring first. Add ML only after all MVP acceptance criteria pass and time remains.
+**Only two complete demo domains are required:** `energy` and `generic_telemetry`, sharing the same dataset model, analysis tools and presentation engine. Sonification is supplementary. Do not implement full ML monitoring first. Add ML only after all MVP acceptance criteria pass and time remains.
 
 ---
 
@@ -326,7 +332,9 @@ Fixtures and expected outputs must be generated/verified together; never hardcod
 
 ---
 
-## 8. Sonification contract — product-defining system
+## 8. Supplementary sonification contract
+
+Sonification remains available for users who want to listen to a trend, anomaly or comparison. It is secondary to the voice-led presentation and must not compete with narrated analysis.
 
 **Sonification = non-speech audio generated from numbers. Timbre TTS = speech. They are distinct audio channels.**
 
@@ -534,18 +542,11 @@ Replay timestamped observations at accelerated speed using the same schema as st
 
 ### App layout
 
-**Top bar:** SonicLens logo, active dataset and domain, live/fixture Gnani status, Audio enabled toggle, import button.
+**Top bar:** SonicLens logo, active dataset and domain, live Gnani status, import button, presentation status and reset.
 
-**Left navigation:** Explore (primary), Audio Lab (mapping/legend), Compare, Demo Scenarios, Settings.
+**Explore workspace:** The active presentation is the primary work surface. The voice control remains easy to reach and reports the current listening, thinking or speaking state. The main chart changes from validated scene data. Investigation steps show only work actually completed. Evidence and prior scenes remain accessible.
 
-**Explore workspace:**
-
-1. Dataset title, import status, row count and time coverage.
-2. Metric chips and time-range selector.
-3. Large interactive chart with event highlights and synchronized audio cursor.
-4. Audio player with Trend / Anomalies / Comparison segmented selector, volume and speed, Play/Pause/Stop.
-5. Voice agent panel with a large push-to-talk button, live transcript, agent answer, source evidence, and a clear speaking/listening state.
-6. Below-chart analytical evidence panel (selected values, units, method and sampled rows).
+Sonification controls live in a secondary Audio Lab disclosure. The voice control supports push-to-talk, live transcript, typed fallback and push-to-interrupt. Avoid an oversized empty microphone card.
 
 **Demo Scenarios:** Energy — unusual evening, Energy — weekday comparison, Telemetry — simultaneous latency/error spike. One-click reset, clear expected behavior, seed provenance.
 
@@ -733,8 +734,8 @@ Rules:
 
 ### Priority order under time pressure
 
-P0 = datasets, real charts, real sonification, grounded analytics, context-follow-up agent, working Prisma and Timbre adapters, live integrated demo where credentials available.  
-P1 = robust CSV import, energy cost calculation, telemetry adapter, test coverage, polished UI and E2E.  
+P0 = voice-led investigation, bounded deterministic tools, scene-driven chart, grounded evidence, interruptible Prisma/Timbre flow, dataset-aware follow-ups.  
+P1 = robust CSV import, energy cost calculation, telemetry scenarios, supplementary sonification, test coverage, polished UI and E2E.  
 P2 = optional SDK, WebSocket replay, exported audio report, additional domains.  
 **Never sacrifice P0 to build P2.**
 
@@ -762,7 +763,7 @@ Codex must record PASS / FAIL / BLOCKED_EXTERNAL for every criterion with suppor
 | DOD-14 | Evidence grounding | Every numerical spoken/displayed answer includes inspectable analysis ID and values |
 | DOD-15 | Prisma adapter | Real Gnani auth and documented request/response implemented; fixture tests pass |
 | DOD-16 | Timbre adapter | Real Gnani auth, documented payload and audio decode implemented; fixture tests pass |
-| DOD-17 | Live Gnani E2E | **Only PASS if authenticated mic → Prisma → agent/tool → Timbre → audible reply succeeds**; otherwise `BLOCKED_EXTERNAL` with exact reason |
+| DOD-17 | Live Gnani E2E | **Only PASS if authenticated physical mic → Prisma → agent/tool → Timbre → audible reply succeeds**; otherwise `IN_PROGRESS` or `BLOCKED_EXTERNAL` with exact verification boundary |
 | DOD-18 | Code-mix support | If provisioned model supports it, record a successful Hindi-English spoken command; otherwise document specific account/model limitation |
 | DOD-19 | Error handling | Permission rejection, timeout, invalid data, empty transcript, provider rejection visibly handled |
 | DOD-20 | No false demo claims | Fixture mode visibly labeled; seeded data labeled synthetic; no hardcoded live replies |
@@ -770,14 +771,14 @@ Codex must record PASS / FAIL / BLOCKED_EXTERNAL for every criterion with suppor
 | DOD-22 | Security | Keys server-only, gitignored, bounded uploads, validated tool arguments and external timeouts |
 | DOD-23 | Automated verification | pytest + frontend tests + typecheck + production build pass, results recorded |
 | DOD-24 | Browser E2E | Seed → Play → anomaly selection → voice/fixture query → context follow-up verified |
-| DOD-25 | Demo readiness | Resettable 60-second walkthrough runs on one laptop; audio captured for review |
+| DOD-25 | Demo readiness | Resettable 60-second voice-led presentation runs on one laptop; narration and chart changes captured for review |
 | DOD-26 | Documentation | README, architecture, API, Gnani configuration, audio mapping, demo guide, progress and known limits complete |
 | DOD-27 | Generalizable architecture | Both energy and telemetry use same core data/analysis/audio engine; no ML-specific core fields |
 | DOD-28 | Real sound value test | A simple blinded pattern-listening test exists; no invented conclusions or inflated efficacy claims |
 
 ### Project completion classification
 
-- **COMPLETE:** DOD-01 through DOD-28 pass, including live Gnani path where credentials are available.
+- **COMPLETE:** All locally testable updated product criteria pass, including live Gnani where credentials are available and verified on a physical microphone.
 - **FUNCTIONAL / EXTERNAL BLOCKER:** All locally testable criteria pass; live Gnani criteria remain `BLOCKED_EXTERNAL` due only to missing credentials/permissions/network. The app must explicitly show the limitation.
 - **INCOMPLETE:** Any locally testable P0 acceptance criterion fails or is untested.
 
@@ -810,5 +811,5 @@ At the end of actual implementation, provide:
 7. **Limitations** — accuracy, external credentials, user validation, current non-goals.
 8. **Next optional improvements** — only after the delivered MVP.
 
-**Start now: inspect the repository, copy this PRD into `PRD.md`, create the goal/evidence tracker, and implement the first complete data → analytics → sonification → UI vertical slice. Then integrate the constrained voice agent and Gnani APIs and verify the full interaction.**
+**Start now: inspect the repository, use the current user-supplied voice-native product direction, maintain the gap/evidence tracker, and implement the complete data → bounded analysis → validated presentation scene → spoken narration vertical slice. Keep sonification supplementary and verify interruption and follow-up behavior.**
 
