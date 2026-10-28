@@ -137,3 +137,35 @@ def test_followup_previous_day_compares_equal_active_window_and_slow_replay():
     replay = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Replay that interval slowly"}).json()
     assert replay["session"]["playback_speed"] == 0.5
     assert replay["analysis"]["range"] == {"start":24,"end":72}
+
+
+def test_ambiguous_query_requests_clarification_without_fabricating_analysis():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Why did it happen?"}).json()
+    assert response["clarification"]["needed"] is True
+    assert response["analysis"] is None
+    assert len(response["clarification"]["choices"]) == 3
+
+
+def test_demo_hinglish_transcript_routes_to_anomaly_tool():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Sirf unusual consumption spikes sunao"}).json()
+    assert response["analysis"]["mode"] == "anomaly"
+    assert response["analysis"]["summary"]["max"] == 2.35
+
+
+def test_metric_alias_and_cost_intent_use_validated_energy_tool():
+    session = client.post("/api/sessions", params={"dataset_id":"api-telemetry","metric":"latency_ms"}).json()
+    response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"api-telemetry","metric":"latency_ms","text":"Show the latency trend"}).json()
+    assert response["analysis"]["metric"] == "latency_ms"
+    energy_session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    cost = client.post("/api/voice/query", json={"session_id":energy_session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"What did this energy cost at my tariff?","tariff":10}).json()
+    assert cost["analysis"]["summary"]["tariff_per_kwh"] == 10
+    assert cost["analysis"]["summary"]["energy_cost"] is not None
+
+
+def test_causal_why_question_does_not_invent_cause():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Why was usage high?"}).json()
+    assert response["analysis"] is None
+    assert "do not identify why" in response["answer"]

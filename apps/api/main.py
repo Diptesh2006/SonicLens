@@ -143,6 +143,12 @@ class QueryRequest(BaseModel):
     tariff: float = Field(default=8, ge=0)
 
 
+class Clarification(BaseModel):
+    needed: bool
+    prompt: str | None = None
+    choices: list[str] = []
+
+
 class SpeakRequest(BaseModel):
     session_id: str
     dataset_id: str
@@ -407,12 +413,31 @@ def query_session(request: QueryRequest):
         raise HTTPException(422, "Metric is not present in this dataset")
     text = request.text.strip()
     normalized = text.casefold()
-    if any(word in normalized for word in ("compare", "difference", "previous day", "yesterday", "compare that")):
+    previous = session.turns[-1].text.casefold() if session.turns and session.turns[-1].role == "assistant" else ""
+    has_context = bool(session.last_analysis_id and previous)
+    metric_aliases = {"latency": "latency_ms", "errors": "error_count", "error": "error_count", "requests": "request_count", "usage": "usage_kwh", "consumption": "usage_kwh"}
+    selected_metric = next((key for alias, key in metric_aliases.items() if alias in normalized and key in dataset.metrics), None)
+    if selected_metric:
+        request = request.model_copy(update={"metric": selected_metric})
+    elif any(term in normalized for term in ("cost", "bill", "expense")):
+        if dataset.domain != "energy" or "usage_kwh" not in dataset.metrics:
+            return {"session": session, "analysis": None, "answer": "Cost can only be calculated from interval energy in kWh with a supplied tariff.", "clarification": {"needed": True, "prompt": "Select an energy dataset and enter a tariff per kWh.", "choices": []}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+        request = request.model_copy(update={"metric": "usage_kwh"})
+    if any(term in normalized for term in ("why", "cause", "caused", "reason")):
+        return {"session": session, "analysis": None, "answer": "The measurements show what changed, but they do not identify why it changed.", "clarification": {"needed": True, "prompt": "I can show the evidence around the change. What would you like to inspect?", "choices": ["Find unusual spikes", "Compare with the previous period", "Show the trend"]}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+    if any(term in normalized for term in ("compare", "difference", "previous day", "yesterday", "compare that", "other metric")):
         session.mode = "comparison"
-    elif any(word in normalized for word in ("anomal", "spike", "unusual", "increase sharply", "increased sharply")):
+    elif any(term in normalized for term in ("anomal", "spike", "unusual", "increase sharply", "increased sharply", "increased", "increasing")):
         session.mode = "anomaly"
-    elif any(word in normalized for word in ("trend", "overall", "everything")):
+    elif any(term in normalized for term in ("trend", "overall", "everything", "play all")):
         session.mode = "trend"
+    elif "cost" in normalized or "bill" in normalized or "expense" in normalized:
+        session.mode = "trend"
+    elif any(term in normalized for term in ("replay", "play that", "same interval", "that interval", "slow", "slower")) and has_context:
+        # Replay keeps the last evidence-bearing analysis mode and selected range.
+        pass
+    else:
+        return {"session": session, "analysis": None, "answer": "I couldn't identify whether you want a trend, unusual events, or a comparison. Which should I analyze?", "clarification": {"needed": True, "prompt": "Choose an analysis for the active metric.", "choices": ["Play the trend", "Find unusual spikes", "Compare with the previous period"]}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
     speed_match = re.search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
     if speed_match:
         session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
@@ -436,7 +461,7 @@ def query_session(request: QueryRequest):
     session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=explain_result(result), analysis_id=result["analysis_id"])])
     session.turns = session.turns[-40:]
     save_session(session)
-    return {"session": session, "analysis": result, "answer": explain_result(result), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+    return {"session": session, "analysis": result, "answer": explain_result(result), "clarification": {"needed": False}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
 
 
 @app.post("/api/voice/speak")

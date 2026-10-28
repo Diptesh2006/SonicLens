@@ -15,18 +15,18 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | API tests verify equal adjacent windows, aligned point count and per-point difference list |
 | DOD-10 | Playback controls, focus range, rate, volume | IN_PROGRESS | UI wired; browser verification pending |
 | DOD-11 | Chart cursor tracks scheduled notes | IN_PROGRESS | Browser verification pending |
-| DOD-12 | Constrained natural-language intent routes analysis | IN_PROGRESS | `/api/voice/query` maps bounded phrase families to deterministic tools; fixture test passes |
-| DOD-13 | Follow-up context resolution | IN_PROGRESS | SQLite session stores selected dataset/metric/mode/focus/turns; simple previous-day and slow replay resolution; broader semantics pending |
+| DOD-12 | Constrained natural-language intent routes analysis | PASS | 19 API tests cover English/Hinglish spike intent, metric alias and tariff-based energy cost; unrecognized intent clarifies |
+| DOD-13 | Follow-up context resolution | PASS | Tests verify selected-range previous-period comparison, replay at 0.5×, session persistence and no unsupported causal answer |
 | DOD-14 | Results have inspectable evidence IDs and source samples | PASS | API returns analysis ID, selected source observations, event evidence and typed sonification plan; API tests pass |
 | DOD-15 | Authentic server-side Gnani Prisma adapter | IN_PROGRESS | Official streaming contract implemented; mock tests pass; live credential call not run |
 | DOD-16 | Authentic server-side Gnani Timbre adapter | IN_PROGRESS | Official REST/WAV contract implemented; mock tests pass; live credential call not run |
 | DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | No `GNANI_*` credentials configured; adapters/UI path implemented but authenticated run remains outstanding |
 | DOD-18 | Hindi-English spoken request verified | NOT_STARTED | Depends on configured live provider/model |
-| DOD-19 | Actionable upload and API errors | IN_PROGRESS | Automated checks pending |
+| DOD-19 | Actionable upload and API errors | PASS | API tests cover invalid schema, duplicates, non-finite readings, invalid metrics, range bounds, missing Gnani credentials and malformed PCM |
 | DOD-20 | Synthetic data and local audio labels are honest | IN_PROGRESS | UI labels; visual review pending |
 | DOD-21 | Responsive desktop and mobile layout | IN_PROGRESS | CSS added; browser check pending |
 | DOD-22 | Server-side keys, bounded uploads, constrained operations | IN_PROGRESS | No voice keys in frontend; upload cap implemented; audit pending |
-| DOD-23 | Backend tests, frontend typecheck and production build | FAIL | pytest 14 passed; `npm run typecheck` passes; Next compilation succeeds but build worker/dev server exits with `Bad escaped character in JSON` in synced workspace |
+| DOD-23 | Backend tests, frontend typecheck and production build | FAIL | pytest 19 passed; `npm run typecheck` passes; Next compile succeeds but production/dev worker exits with `Bad escaped character in JSON` in synced workspace |
 | DOD-24 | Browser end-to-end seeded exploration | BLOCKED_EXTERNAL | Playwright CLI available, but local Next server exits before listening with JSON parse error; navigation refused |
 | DOD-25 | Repeatable demo recording flow | NOT_STARTED | — |
 | DOD-26 | Setup, architecture, API, voice, audio and demo docs | IN_PROGRESS | Initial docs planned in this slice |
