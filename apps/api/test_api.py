@@ -189,3 +189,21 @@ def test_csv_missing_values_and_unit_corrections_persist():
     changed = client.patch(f"/api/datasets/{dataset['id']}/metrics/reading/unit", json={"unit":"widgets"})
     assert changed.json()["unit"] == "widgets"
     assert client.get(f"/api/datasets/{dataset['id']}").json()["metric_units"]["reading"] == "widgets"
+
+
+def test_csv_cost_requires_explicit_kwh_unit_semantics():
+    imported = client.post("/api/datasets/import", files={"file": ("usage.csv", b"timestamp,usage_kwh\n2026-01-01T00:00:00Z,2\n2026-01-01T01:00:00Z,3\n", "text/csv")}).json()
+    request = {"dataset_id":imported["id"],"metric":"usage_kwh","tariff":8}
+    before = client.post("/api/analysis", json=request).json()
+    assert before["summary"]["energy_cost"] is None
+    client.patch(f"/api/datasets/{imported['id']}/metrics/usage_kwh/unit", json={"unit":"kWh"})
+    after = client.post("/api/analysis", json=request).json()
+    assert after["summary"]["energy_cost"] == 40
+
+
+def test_power_samples_never_receive_interval_energy_cost():
+    imported = client.post("/api/datasets/import", files={"file": ("power.csv", b"timestamp,power\n2026-01-01T00:00:00Z,2\n2026-01-01T01:00:00Z,3\n", "text/csv")}).json()
+    client.patch(f"/api/datasets/{imported['id']}/metrics/power/unit", json={"unit":"kW","sampling_kind":"power_sample"})
+    result = client.post("/api/analysis", json={"dataset_id":imported["id"],"metric":"power","tariff":8}).json()
+    assert result["summary"]["energy_cost"] is None
+    assert result["summary"]["energy_semantics"] is None

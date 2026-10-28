@@ -4,6 +4,7 @@
 - `GET /api/datasets`: energy and telemetry datasets with samples, units and synthetic provenance.
 - `GET /api/datasets/{dataset_id}`: one dataset.
 - `POST /api/datasets/import`: multipart CSV (`timestamp`/`time`/`date`/`datetime` plus numeric metrics), maximum 10 MB and 50,000 rows.
+- `PATCH /api/datasets/{dataset_id}/metrics/{metric}/unit`: `{unit, sampling_kind}` lets the user correct imported metric units and declare `interval_energy`, `power_sample`, `sampled`, or `unknown`. Cost is returned only for explicitly declared interval energy in kWh; kW is never multiplied directly by tariff.
 - `POST /api/analysis`: JSON `{dataset_id, metric, mode, start, end, tariff}`. Returns summary, robust outlier/change events, source evidence and focus indices.
 - `POST /api/demo/reset`: restore the two deterministic synthetic datasets, remove imported CSV data, and clear conversation sessions.
 - `POST /api/sessions?dataset_id=…&metric=…`: create a persistent exploration session.
@@ -12,4 +13,4 @@
 - `POST /api/voice/speak`: bounded base64 mono PCM plus active dataset/session; uses real Prisma, deterministic analysis, then real Timbre WAV when server credentials are configured. It returns HTTP 503 when credentials are absent.
 - `POST /api/voice/synthesize`: `{text, language}`; returns provider audio only when configured.
 
-Interactive schema: `/docs`. Datasets currently live in API process memory. API validation errors use standard FastAPI status/detail responses.
+Interactive schema: `/docs`. Datasets and sessions are stored in SQLite. API validation errors use standard FastAPI status/detail responses.

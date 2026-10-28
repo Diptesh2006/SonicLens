@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Phase 1 data vertical slice: first implementation committed; backend tests and web typecheck pass. Web production build remains blocked by an incomplete installed `caniuse-lite` package in the OneDrive workspace. Browser verification is still outstanding.
+Current checkpoint: data/audio workspace, deterministic analysis and constrained local query flow are implemented. API and frontend type checks pass; Next compilation succeeds, but its post-compile worker fails parsing JSON metadata in this OneDrive-synced environment, so browser verification remains outstanding.
 
 ## Implemented in working tree
 
@@ -18,17 +18,16 @@ Phase 1 data vertical slice: first implementation committed; backend tests and w
 
 ## Tests and remaining failures
 
-- Backend: `python -m pytest test_api.py -q` → 21 passed (CSV quality and units, comparison, sessions/followups, intent clarification, metric/cost routing, voice adapters mocked).
+- Backend: `python -m pytest test_api.py -q` → 23 passed (CSV quality, missingness, explicit units/energy semantics, comparisons, sessions/followups and mocked voice adapters).
 - Frontend `npm run typecheck` → pass.
-- Frontend `npm run build` → failed because installed `caniuse-lite/dist/lib/statuses` is missing. `npm install` exits successfully but leaves this package incomplete here.
+- Frontend production compile completes; Next build worker then exits with `Bad escaped character in JSON` during type/lint checks. Standalone TypeScript check passes.
 - No browser visual or audible verification has been performed: Next client compilation succeeds but a later runtime/build worker exits parsing JSON metadata, before binding localhost:3000.
 - Gnani server adapters and microphone UI exist; provider tests are mocked. Live Prisma/Timbre remains blocked by absent credentials.
-- Gnani integration is not implemented or verified. Voice button is visibly disabled.
-- SQLite persistence, sessions/follow-up agent, robust comparisons, production polish and browser verification remain.
+- Microphone capture is conditionally enabled by API health configuration; it remains unavailable in this environment because no Gnani credentials are configured.
 
 ## Next actions
 
-1. Restore complete npm package installation in this workspace or a non-synced checkout and rerun build.
+1. Resolve the Next post-compile JSON worker failure and run the UI in a real browser.
 2. Start both processes and inspect browser interaction and sound.
 3. Record evidence and fix any behavior issues.
-4. Continue with browser startup/visual checks, robust analysis semantics and user-facing usability; live Gnani verification remains credential-dependent.
+4. Continue with browser startup/visual checks and remaining analytical workflows; live Gnani verification remains credential-dependent.

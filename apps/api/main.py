@@ -38,7 +38,7 @@ class Dataset(BaseModel):
     unit: str
     metrics: list[str]
     metric_units: dict[str, str] = {}
-    sampling_kind: Literal["interval_energy", "sampled", "unknown"] = "unknown"
+    sampling_kind: Literal["interval_energy", "sampled", "power_sample", "unknown"] = "unknown"
     missing_counts: dict[str, int] = {}
     samples: list[Sample]
 
@@ -60,6 +60,7 @@ class FocusRequest(BaseModel):
 
 class MetricUnitRequest(BaseModel):
     unit: str = Field(min_length=1, max_length=40)
+    sampling_kind: Literal["interval_energy", "sampled", "power_sample", "unknown"] | None = None
 
 
 def seeds() -> dict[str, Dataset]:
@@ -288,6 +289,10 @@ def update_metric_unit(dataset_id: str, metric: str, request: MetricUnitRequest)
     if metric not in dataset.metrics:
         raise HTTPException(422, "Metric is not present in this dataset")
     dataset.metric_units[metric] = request.unit.strip()
+    if request.sampling_kind:
+        dataset.sampling_kind = request.sampling_kind
+    elif dataset.domain == "csv":
+        dataset.sampling_kind = "interval_energy" if dataset.metric_units[metric].casefold() == "kwh" else "power_sample" if dataset.metric_units[metric].casefold() == "kw" else "unknown"
     save_dataset(dataset)
     return {"dataset_id": dataset_id, "metric": metric, "unit": dataset.metric_units[metric]}
 
@@ -386,7 +391,8 @@ def analyze(request: AnalyzeRequest):
             focus.update(index for index in range(end-half, end) if index < len(dataset.samples) and request.metric in dataset.samples[index].values)
     else:
         focus.update(range(start, end))
-    cost = round(sum(values)*request.tariff, 2) if dataset.domain == "energy" and request.metric == "usage_kwh" else None
+    is_interval_energy = dataset.sampling_kind == "interval_energy" and dataset.metric_units.get(request.metric) == "kWh"
+    cost = round(sum(values)*request.tariff, 2) if is_interval_energy else None
     analysis_id = f"ana-{uuid4().hex[:10]}"
     plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end and request.metric in dataset.samples[index].values]
     metric_unit = dataset.metric_units.get(request.metric, dataset.unit)

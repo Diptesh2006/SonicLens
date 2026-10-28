@@ -9,7 +9,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-03 | Synthetic energy and telemetry datasets | PASS | `python -m pytest test_api.py -q`: expected seeded IDs and health count passed |
 | DOD-04 | Chart shows backend observations and selected metric/range | IN_PROGRESS | Browser verification pending |
 | DOD-05 | Summary, local peaks, outlier, abrupt-change and aligned period comparison | PASS | `python -m pytest test_api.py -q`: 14 passed, including peak output and aligned offset differences |
-| DOD-06 | Energy cost uses labeled user tariff and interval kWh | PASS | `python -m pytest test_api.py -q`: expected computed tariff total matches source observations |
+| DOD-06 | Energy cost uses labeled tariff and confirmed interval kWh; never treats kW as kWh | PASS | 23 API tests verify seed tariff total, explicit CSV kWh confirmation, and no cost for kW power samples |
 | DOD-07 | Browser generates data-mapped trend audio | IN_PROGRESS | Manual audio check pending |
 | DOD-08 | Anomaly mode focuses detected intervals | IN_PROGRESS | API and browser checks pending |
 | DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | API tests verify equal adjacent windows, aligned point count and per-point difference list |

@@ -7,5 +7,6 @@
 5. Switch to API telemetry, choose latency or errors, and replay.
 6. Upload a CSV with ISO timestamps and numeric columns.
 7. Ask “Find unusual spikes” or “Compare the periods”; inspect the deterministic answer, analysis ID and aligned evidence.
+8. For imported CSV files, set the unit and sampling semantics explicitly. Energy cost remains unavailable for unconfirmed units or power samples.
 
-The microphone flow is not available yet. Do not describe the current keyword selector as speech recognition or the disabled mic as a working Gnani integration.
+The microphone flow requires `GNANI_API_KEY` in the API server environment. Without it, the UI labels the provider unconfigured and keeps microphone capture disabled; text prompts use deterministic local analysis tools.
