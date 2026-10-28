@@ -54,3 +54,34 @@ def test_sessions_persist_and_query_updates_analysis():
     assert body["answer"] and body["analysis"]["analysis_id"]
     assert body["session"]["turns"][-1]["analysis_id"] == body["analysis"]["analysis_id"]
     assert client.get(f"/api/sessions/{session['id']}").json()["id"] == session["id"]
+
+
+def test_comparison_pairs_same_offsets_and_exposes_differences():
+    result = client.post("/api/analysis", json={"dataset_id": "energy-week", "metric": "usage_kwh", "mode": "comparison", "start": 12, "end": 60}).json()
+    comparison = result["comparison"]
+    assert comparison["aligned_points"] == len(comparison["differences"]) == 24
+    assert comparison["period_a"] == {"start": 12, "end": 36}
+    assert comparison["period_b"] == {"start": 36, "end": 60}
+
+
+def test_focus_rejects_out_of_bounds_and_demo_reset_removes_uploads():
+    session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
+    invalid = client.post(f"/api/sessions/{session['id']}/focus", json={"start": 0, "end": 999})
+    assert invalid.status_code == 422
+    reset = client.post("/api/demo/reset").json()
+    assert {dataset["id"] for dataset in reset["datasets"]} == {"energy-week", "api-telemetry"}
+    assert len(client.get("/api/datasets").json()) == 2
+
+
+def test_csv_normalizes_order_and_rejects_duplicate_timestamps():
+    result = client.post("/api/datasets/import", files={"file": ("ordered.csv", b"timestamp,reading\n2026-01-01T01:00:00Z,2\n2026-01-01T00:00:00Z,1\n", "text/csv")})
+    assert result.status_code == 200
+    times = [sample["timestamp"] for sample in result.json()["samples"]]
+    assert times == sorted(times)
+    duplicate = client.post("/api/datasets/import", files={"file": ("duplicate.csv", b"timestamp,reading\n2026-01-01T00:00:00Z,1\n2026-01-01T00:00:00Z,2\n", "text/csv")})
+    assert duplicate.status_code == 400 and "Duplicate timestamps" in duplicate.json()["detail"]
+
+
+def test_csv_rejects_infinite_values_instead_of_silently_dropping_series():
+    result = client.post("/api/datasets/import", files={"file": ("infinite.csv", b"timestamp,reading\n2026-01-01T00:00:00Z,Infinity\n", "text/csv")})
+    assert result.status_code == 400 and "Infinity" in result.json()["detail"]

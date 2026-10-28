@@ -5,4 +5,5 @@
 - **Synthetic seeds are explicit.** Household and API series are generated deterministically and labeled synthetic in the API/UI.
 - **Voice is disabled until integrated.** No browser speech synthesis or fixture is represented as Gnani. Live STT/TTS requires a server-side provider adapter and credentials.
 - **Energy seed stores interval kWh.** The labeled ₹8/kWh demo tariff is configurable in the analysis API, and cost multiplies interval quantities directly; raw kW is not treated as energy.
-- **Comparison mode currently plays both contiguous halves.** A true aligned period-comparison analysis with physical difference semantics remains future work; current mode is labeled as a playback view.
+- **Comparison aligns equal offsets in two adjacent equal-length windows.** It reports per-offset differences and a mean difference in the metric's unit; it does not imply causation.
+- **Local intent is constrained deterministic routing.** A bounded phrase-to-tool layer provides inspectable analysis while the live speech path awaits verified provider adapters; the UI labels its local nature.
