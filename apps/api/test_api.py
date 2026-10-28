@@ -1,6 +1,7 @@
 import os
 import tempfile
 import base64
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
@@ -207,3 +208,31 @@ def test_power_samples_never_receive_interval_energy_cost():
     result = client.post("/api/analysis", json={"dataset_id":imported["id"],"metric":"power","tariff":8}).json()
     assert result["summary"]["energy_cost"] is None
     assert result["summary"]["energy_semantics"] is None
+
+
+def test_csv_rejects_timezone_naive_timestamps_and_analysis_rejects_empty_range():
+    naive = client.post("/api/datasets/import", files={"file": ("naive.csv", b"timestamp,value\n2026-01-01 00:00:00,1\n", "text/csv")})
+    assert naive.status_code == 400 and "has no timezone" in naive.json()["detail"]
+    empty = client.post("/api/analysis", json={"dataset_id":"energy-week","metric":"usage_kwh","start":0,"end":0})
+    assert empty.status_code == 422
+
+
+def test_prisma_languages_are_validated_before_network_call():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    audio = base64.b64encode(bytes(16000)).decode()
+    invalid = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"language_code":"xx-XX"})
+    assert invalid.status_code == 422
+    with patch("main.gnani_key", return_value="test-key"), patch.dict("os.environ", {"GNANI_PRISMA_MODEL":"gnani-prisma-v2.5"}), patch("main.websockets.connect") as connect:
+        mixed = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"language_code":"hi-IN,en-IN"})
+    assert mixed.status_code == 422 and "one language" in mixed.json()["detail"]
+    connect.assert_not_called()
+
+
+def test_energy_comparison_aligns_clock_time_and_returns_pair_evidence():
+    result = client.post("/api/analysis", json={"dataset_id":"energy-week","metric":"usage_kwh","mode":"comparison","start":10,"end":58}).json()
+    samples = client.get("/api/datasets/energy-week").json()["samples"]
+    comparison = result["comparison"]
+    assert comparison["aligned_by"] == "time_of_day"
+    assert comparison["aligned_points"] == 24
+    assert all(datetime.fromisoformat(samples[p["index_a"]]["timestamp"]).hour == datetime.fromisoformat(samples[p["index_b"]]["timestamp"]).hour for p in comparison["pairs"])
+    assert result["focus_indices"] == sorted({index for pair in comparison["pairs"] for index in (pair["index_a"],pair["index_b"])})

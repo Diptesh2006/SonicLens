@@ -6,3 +6,4 @@
 .quick-prompts.clarification{padding:8px;border:1px solid #65503c;border-radius:7px;background:#29231d}.quick-prompts.clarification:before{content:"Choose an analysis";align-self:center;color:#d2b394;font-size:9px;margin:0 3px}
 .stop-button{background:#252830;color:#abb0bb;border:1px solid #363a45;border-radius:6px;padding:6px 8px;font:9px 'DM Sans',sans-serif;cursor:pointer}.stop-button:disabled{opacity:.4;cursor:default}
 .unit-pill{border:1px solid #30343d;background:#191c23;color:#9da4af;border-radius:6px;padding:7px 9px;font-size:9px}.unit-editor{display:flex;align-items:center;gap:5px;color:#9298a4;font:8px 'DM Mono',monospace}.unit-editor input{width:90px;background:#191c23;color:#d7d8dd;border:1px solid #30343d;border-radius:5px;padding:6px;font:10px 'DM Sans',sans-serif}
+.status-dot.ready{background:#62c7a2;box-shadow:0 0 7px #62c7a288}

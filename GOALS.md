@@ -12,7 +12,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-06 | Energy cost uses labeled tariff and confirmed interval kWh; never treats kW as kWh | PASS | 23 API tests verify seed tariff total, explicit CSV kWh confirmation, and no cost for kW power samples |
 | DOD-07 | Browser generates data-mapped trend audio | IN_PROGRESS | Manual audio check pending |
 | DOD-08 | Anomaly mode focuses detected intervals | IN_PROGRESS | API and browser checks pending |
-| DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | API tests verify equal adjacent windows, aligned point count and per-point difference list |
+| DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | 26 API tests include energy same-time-of-day pairing, returned source index/value pairs and generic sequence alignment |
 | DOD-10 | Playback controls, focus range, rate, volume | IN_PROGRESS | Distinct pause/resume and stop, range, speed, volume wired; browser verification pending |
 | DOD-11 | Chart cursor tracks scheduled notes | IN_PROGRESS | Browser verification pending |
 | DOD-12 | Constrained natural-language intent routes analysis | PASS | 19 API tests cover English/Hinglish spike intent, metric alias and tariff-based energy cost; unrecognized intent clarifies |

@@ -163,7 +163,7 @@ class SpeakRequest(BaseModel):
     metric: str
     audio_base64: str = Field(min_length=1, max_length=16_000_000)
     sample_rate: Literal[16000, 44100, 48000] = 16000
-    language_code: str = "indic-auto"
+    language_code: Literal["indic-auto", "hi-IN", "en-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "bn-IN", "gu-IN", "hi-IN,en-IN"] = "indic-auto"
     tariff: float = Field(default=8, ge=0)
 
 
@@ -184,7 +184,12 @@ async def prisma_transcribe(pcm: bytes, sample_rate: int, language_code: str) ->
     key = gnani_key()
     if not key:
         raise HTTPException(503, "Gnani Prisma is not configured. Set GNANI_API_KEY on the API server.")
-    headers = {"x-api-key-id": key, "x-model": os.getenv("GNANI_PRISMA_MODEL", "prisma-v3.0"), "lang_code": language_code, "x-sample-rate": str(sample_rate), "x-format": "transcribe", "x-idle-timeout-sec": "10"}
+    model = os.getenv("GNANI_PRISMA_MODEL", "prisma-v3.0")
+    if model not in {"prisma-v3.0", "gnani-prisma-v2.5"}:
+        raise HTTPException(500, "GNANI_PRISMA_MODEL must be prisma-v3.0 or gnani-prisma-v2.5")
+    if model == "gnani-prisma-v2.5" and "," in language_code:
+        raise HTTPException(422, "Prisma v2.5 accepts one language code; choose a single language")
+    headers = {"x-api-key-id": key, "x-model": model, "lang_code": language_code, "x-sample-rate": str(sample_rate), "x-format": "transcribe", "x-idle-timeout-sec": "10"}
     transcript = ""
     detected = None
     try:
@@ -328,7 +333,14 @@ async def import_csv(file: UploadFile = File(...)):
                     raise
         if not metric_keys:
             raise ValueError("Add at least one numeric metric column")
-        samples = [Sample(timestamp=datetime.fromisoformat(row[time_key].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat(), values={key: float(row[key]) for key in metric_keys if row[key]}) for row in rows]
+        parsed_times = []
+        for row_number, row in enumerate(rows, start=2):
+            raw_time = row[time_key].strip()
+            parsed_time = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+            if parsed_time.tzinfo is None:
+                raise ValueError(f"Timestamp on CSV row {row_number} has no timezone; use ISO timestamps with Z or an explicit UTC offset")
+            parsed_times.append(parsed_time.astimezone(timezone.utc).isoformat())
+        samples = [Sample(timestamp=parsed_times[i], values={key: float(row[key]) for key in metric_keys if row[key]}) for i, row in enumerate(rows)]
         if any(not sample.values for sample in samples):
             # Entirely missing rows are retained as data-quality evidence and skipped by analysis.
             pass
@@ -352,7 +364,7 @@ def analyze(request: AnalyzeRequest):
         raise HTTPException(404, "Dataset not found")
     if request.metric not in dataset.metrics:
         raise HTTPException(422, "Metric is not present in this dataset")
-    end = min(request.end or len(dataset.samples), len(dataset.samples))
+    end = min(len(dataset.samples) if request.end is None else request.end, len(dataset.samples))
     start = max(request.start, 0)
     if start >= len(dataset.samples) or end <= start:
         raise HTTPException(422, "Selected range must include at least one existing observation")
@@ -377,18 +389,31 @@ def analyze(request: AnalyzeRequest):
             focus.add(start+peak_index)
     elif request.mode == "comparison":
         if len(values) >= 2:
-            half = len(values)//2
             half = len(selected)//2
             first_window, second_window = selected[:half], selected[-half:]
-            pairs = [(left.values[request.metric], right.values[request.metric]) for left,right in zip(first_window,second_window) if request.metric in left.values and request.metric in right.values]
+            if dataset.sampling_kind == "interval_energy":
+                first_by_slot = {}
+                for index, sample in enumerate(first_window, start=start):
+                    if request.metric in sample.values:
+                        dt = datetime.fromisoformat(sample.timestamp)
+                        first_by_slot[(dt.hour, dt.minute, dt.second)] = (index, sample.values[request.metric])
+                pairs = []
+                for index, sample in enumerate(second_window, start=end-half):
+                    if request.metric not in sample.values:
+                        continue
+                    dt = datetime.fromisoformat(sample.timestamp)
+                    prior = first_by_slot.get((dt.hour, dt.minute, dt.second))
+                    if prior:
+                        pairs.append((prior[0], index, prior[1], sample.values[request.metric]))
+            else:
+                pairs = [(start+i, end-half+i, left.values[request.metric], right.values[request.metric]) for i,(left,right) in enumerate(zip(first_window,second_window)) if request.metric in left.values and request.metric in right.values]
             aligned = len(pairs)
-            diffs = [right-left for left,right in pairs]
+            diffs = [right-left for _,_,left,right in pairs]
             if not aligned:
                 raise HTTPException(422, "The selected periods have no aligned observations for this metric")
-            midpoint = start + half
-            comparison = {"split_index": midpoint, "aligned_points": aligned, "mean_difference": round(statistics.mean(diffs), 4), "absolute_difference": round(abs(statistics.mean(diffs)), 4), "unit": dataset.unit, "period_a": {"start": start, "end": start+half}, "period_b": {"start": end-half, "end": end}, "differences": [round(value, 4) for value in diffs]}
-            focus.update(index for index in range(start, start+half) if index < len(dataset.samples) and request.metric in dataset.samples[index].values)
-            focus.update(index for index in range(end-half, end) if index < len(dataset.samples) and request.metric in dataset.samples[index].values)
+            comparison = {"aligned_by": "time_of_day" if dataset.sampling_kind == "interval_energy" else "sequence_index", "aligned_points": aligned, "mean_difference": round(statistics.mean(diffs), 4), "absolute_difference": round(abs(statistics.mean(diffs)), 4), "unit": dataset.metric_units.get(request.metric, dataset.unit), "period_a": {"start": start, "end": start+half}, "period_b": {"start": end-half, "end": end}, "differences": [round(value, 4) for value in diffs], "pairs": [{"index_a": left, "index_b": right, "value_a": a, "value_b": b, "delta": round(b-a,4)} for left,right,a,b in pairs]}
+            focus.update(pair[0] for pair in pairs)
+            focus.update(pair[1] for pair in pairs)
     else:
         focus.update(range(start, end))
     is_interval_energy = dataset.sampling_kind == "interval_energy" and dataset.metric_units.get(request.metric) == "kWh"
@@ -480,8 +505,10 @@ def query_session(request: QueryRequest):
     compare_previous = "previous day" in normalized or "yesterday" in normalized
     if compare_previous:
         duration = max(1, end-start)
-        start = max(0, start-duration)
-        end = min(len(dataset.samples), start+duration*2)
+        comparison_end = end
+        comparison_start = max(0, comparison_end-duration)
+        end = comparison_end
+        start = max(0, comparison_start-duration)
     elif any(word in normalized for word in ("replay", "play that", "same interval", "that interval")) and session.last_analysis_id:
         prior = next((turn for turn in reversed(session.turns) if turn.role == "assistant" and turn.analysis_id == session.last_analysis_id), None)
         if prior:
@@ -495,7 +522,7 @@ def query_session(request: QueryRequest):
     session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=explain_result(result), analysis_id=result["analysis_id"])])
     session.turns = session.turns[-40:]
     save_session(session)
-    return {"session": session, "analysis": result, "answer": explain_result(result), "clarification": {"needed": False}, "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+    return {"session": session, "analysis": result, "answer": explain_result(result), "clarification": {"needed": False}, "provider": "deterministic_local_tools", "voice_status": "configured" if gnani_ready() else "unconfigured"}
 
 
 @app.post("/api/voice/speak")
