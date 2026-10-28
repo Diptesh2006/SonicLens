@@ -4,9 +4,9 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 
 | ID | Acceptance criterion | Status | Verification / evidence |
 |---|---|---|---|
-| DOD-01 | Documented local frontend and API startup | IN_PROGRESS | README and launch commands; not yet run |
-| DOD-02 | Bounded valid/invalid CSV import | IN_PROGRESS | `apps/api/test_api.py`; execute with pytest |
-| DOD-03 | Synthetic energy and telemetry datasets | IN_PROGRESS | API routes and seeded fixture tests |
+| DOD-01 | Documented local frontend and API startup | IN_PROGRESS | README commands exist; processes not yet run together |
+| DOD-02 | Bounded valid/invalid CSV import | PASS | `python -m pytest test_api.py -q`: valid/import and actionable invalid CSV tests passed; size cap implemented |
+| DOD-03 | Synthetic energy and telemetry datasets | PASS | `python -m pytest test_api.py -q`: expected seeded IDs and health count passed |
 | DOD-04 | Chart shows backend observations and selected metric/range | IN_PROGRESS | Browser verification pending |
 | DOD-05 | Summary, outlier, abrupt-change analysis | IN_PROGRESS | API tests pending execution |
 | DOD-06 | Energy cost uses labeled user tariff and interval kWh | IN_PROGRESS | API test pending execution |
@@ -26,7 +26,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-20 | Synthetic data and local audio labels are honest | IN_PROGRESS | UI labels; visual review pending |
 | DOD-21 | Responsive desktop and mobile layout | IN_PROGRESS | CSS added; browser check pending |
 | DOD-22 | Server-side keys, bounded uploads, constrained operations | IN_PROGRESS | No voice keys in frontend; upload cap implemented; audit pending |
-| DOD-23 | Backend tests, frontend typecheck and production build | IN_PROGRESS | Not yet executed |
+| DOD-23 | Backend tests, frontend typecheck and production build | FAIL | pytest 4 passed; `npm run typecheck` passed; `npm run build` failed on missing installed `caniuse-lite/dist/lib/statuses` in OneDrive workspace |
 | DOD-24 | Browser end-to-end seeded exploration | NOT_STARTED | Browser test tooling not inspected |
 | DOD-25 | Repeatable demo recording flow | NOT_STARTED | — |
 | DOD-26 | Setup, architecture, API, voice, audio and demo docs | IN_PROGRESS | Initial docs planned in this slice |

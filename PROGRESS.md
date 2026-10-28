@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Phase 1 data vertical slice: API and connected web workspace implemented; run checks and repair before starting the next slice.
+Phase 1 data vertical slice: first implementation committed; backend tests and web typecheck pass. Web production build remains blocked by an incomplete installed `caniuse-lite` package in the OneDrive workspace. Browser verification is still outstanding.
 
 ## Implemented in working tree
 
@@ -14,14 +14,16 @@ Phase 1 data vertical slice: API and connected web workspace implemented; run ch
 
 ## Tests and remaining failures
 
-- Not run yet. Execute commands in `TEST_RESULTS.md` and update this checkpoint from actual output.
+- Backend: `python -m pytest test_api.py -q` → 4 passed.
+- Frontend `npm run typecheck` → pass.
+- Frontend `npm run build` → failed because installed `caniuse-lite/dist/lib/statuses` is missing. `npm install` exits successfully but leaves this package incomplete here.
+- No browser visual or audible verification has been performed yet.
 - Gnani integration is not implemented or verified. Voice button is visibly disabled.
 - SQLite persistence, sessions/follow-up agent, robust comparisons, production polish and browser verification remain.
 
 ## Next actions
 
-1. Run backend tests; fix all failures.
-2. Install web dependencies and run typecheck/build; fix issues.
-3. Start both processes and inspect browser interaction.
-4. Record evidence, then commit with a conventional `feat:` message.
-5. Continue with persistence/analysis improvements, agent context, and Gnani adapters in subsequent meaningful commits.
+1. Restore complete npm package installation in this workspace or a non-synced checkout and rerun build.
+2. Start both processes and inspect browser interaction and sound.
+3. Record evidence and fix any behavior issues.
+4. Continue with SQLite persistence and fuller analytical tools, then context agent and Gnani adapters in subsequent conventional commits.
