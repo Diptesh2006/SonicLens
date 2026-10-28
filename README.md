@@ -1,6 +1,6 @@
 # SonicLens
 
-SonicLens explores time-series datasets with computed evidence, an interactive chart and browser-generated sound. Seed data is synthetic. The current first slice supports energy and API telemetry demos plus CSV import.
+SonicLens explores time-series data with deterministic analysis, a synchronized chart and data-mapped browser audio. It includes synthetic household energy and API telemetry datasets, validated CSV import, constrained text intent, and optional Gnani speech adapters. Seed data are synthetic; no utility or monitoring service is connected.
 
 ## Requirements
 
@@ -9,7 +9,9 @@ SonicLens explores time-series datasets with computed evidence, an interactive c
 
 ## Run locally
 
-Terminal 1:
+From the repository root, use two PowerShell terminals.
+
+Terminal 1 — API:
 
 ```powershell
 cd apps/api
@@ -19,27 +21,45 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Terminal 2:
+Terminal 2 — web app:
 
 ```powershell
 cd apps/web
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The API and OpenAPI page are at http://localhost:8000 and http://localhost:8000/docs.
+Open <http://localhost:3000>. API health is at <http://localhost:8000/api/health>, with interactive docs at <http://localhost:8000/docs>.
 
-## Verification
+## Verify
 
-Run API tests with `cd apps/api; python -m pytest -q`. Run web checks with `cd apps/web; npm run typecheck` and `npm run build`.
+```powershell
+cd apps/api
+python -m pytest test_api.py -q
+cd ../web
+npm run typecheck
+npm run build
+```
 
-## Current capabilities and limits
+## Product behavior
 
-- Synthetic seven-day interval energy and 24-hour API telemetry fixtures.
-- Backend mean, range, robust outlier and abrupt-change analysis; energy cost uses the explicitly labeled ₹8/kWh demo tariff (editable through the API).
-- CSV import accepts up to 10 MB and 50,000 rows, with an explicit time column and numeric metric.
-- Trend/anomaly/comparison playback maps values to local oscillator tones after clicking Play. Browser autoplay restrictions are respected by the user gesture.
-- SQLite persistence, conversational sessions, aligned period comparison and bounded local intent analysis are implemented. Gnani Prisma/Timbre adapters and microphone/WAV UI are implemented, but live calls require credentials; the microphone stays disabled until the API reports configuration.
-- Frontend production build currently fails in this OneDrive-synced checkout because `node_modules/caniuse-lite/data/features/html-media-capture.js` is absent despite npm reporting a successful install. `npm run typecheck` passes; use a non-synced checkout or repair the local package tree before treating the web build as verified.
+- Synthetic household interval energy (7 days) and API telemetry (24 hours).
+- CSV upload supports up to 10 MB and 50,000 rows. Timestamps must include a timezone; duplicate timestamps and non-finite values are rejected; missing metric values remain visible in evidence.
+- Deterministic summaries, peaks, outliers, abrupt changes, aligned period comparisons and persisted source evidence.
+- Energy cost appears only for data explicitly labeled as interval kWh and uses the entered ₹/kWh tariff. Raw kW is never treated as kWh.
+- Trend, anomaly and signed comparison sonification use Web Audio after a user gesture. Previews schedule at most 150 evenly spaced points. Playback has range, cursor, pause/resume, stop, speed and volume controls.
+- Each analysis exposes a stable evidence ID and exact timestamped source observations. Demo reset removes uploaded datasets and clears sessions.
+- Text questions use constrained local deterministic intent handling. Optional microphone STT and spoken explanations use server-side Gnani Prisma and Timbre adapters; voice remains disabled until the API reports a key configured.
 
-See [PRD.md](PRD.md), [GOALS.md](GOALS.md), and [PROGRESS.md](PROGRESS.md) for scope and current status.
+## Gnani configuration
+
+Set `GNANI_API_KEY` in the API server environment. Optional model and endpoint settings are documented in [docs/GNANI_SETUP.md](docs/GNANI_SETUP.md). The current environment has no Gnani credentials, so authenticated STT/TTS calls have not been verified. Provider mocks are not live-integration evidence.
+
+## Known limitations
+
+- Live Gnani calls and Hindi-English microphone requests require account credentials and entitled models.
+- Browser audio scheduling and cursor behavior were exercised, but audibility on a physical speaker/headphone output was not independently evaluated.
+- The blinded listening protocol is a proposed formative test, not a completed participant study; SonicLens makes no efficacy or accessibility-validation claims.
+- A recorded end-to-end demo artifact has not yet been captured.
+
+See [PRD.md](PRD.md), [GOALS.md](GOALS.md), [PROGRESS.md](PROGRESS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/SONIFICATION.md](docs/SONIFICATION.md), [docs/DEMO.md](docs/DEMO.md), and [docs/SOUND_EVALUATION.md](docs/SOUND_EVALUATION.md).
