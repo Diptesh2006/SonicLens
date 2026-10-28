@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Core data import, deterministic analysis, three sound modes, constrained text/voice adapters, evidence persistence, and browser workspace are implemented. Production build, CSV upload, explicit unit/cost flow, 390px layout, and browser journeys pass from the actual OneDrive checkout. Remaining work is final documentation/demo review and audio capture verification; authenticated live Gnani access is unavailable in the current environment.
+Core data import, deterministic analysis, three sound modes, constrained text/voice adapters, evidence persistence, and the voice-first household energy workspace are implemented. On 29 October 2026, the production build and all 28 API tests passed; the production browser returned a grounded typed spike answer with evidence, and desktop and 390px mobile layouts rendered without horizontal overflow. Remaining user-device checks are physical microphone capture/output and a Hindi-English request; a repeatable demo recording also remains outstanding.
 
 The API reads server configuration from the repository-root `.env` at startup. A nonempty key was detected without printing or logging its value. Explicit Prisma and Timbre endpoints are configured in the ignored `.env`; live provider calls now pass.
 
@@ -29,6 +29,9 @@ The API reads server configuration from the repository-root `.env` at startup. A
 
 ## Verification evidence
 
+- 29 October 2026: production browser loaded the seeded energy dataset with “VOICE READY”; typed “Find unusual spikes” returned the calculated 2.35 kWh peak with a persisted evidence ID.
+- Desktop browser at 1365×900 and mobile at 390×844: primary voice action, chart and energy summary were visible; document width matched viewport width; browser console had zero errors or warnings.
+- The voice-first question, transcript, grounded answer and replay UI were reviewed in the mobile screenshot. Browser microphone capture/output was not exercised.
 - `python -m pytest test_api.py -q`: 28 passed.
 - `npm run typecheck`: pass.
 - `npm run build`: pass; routes prerendered, favicon included.
@@ -43,6 +46,5 @@ The API reads server configuration from the repository-root `.env` at startup. A
 
 ## Next actions
 
-1. Final review README, architecture and Gnani setup docs for current commands and payloads.
+1. Verify microphone capture and spoken playback on the user's device; verify a Hindi-English utterance.
 2. Capture a repeatable demo only if the environment can record browser audio faithfully.
-3. Reconcile goals; do not mark physical-mic or Hindi-English checks passed until exercised on the user's device.

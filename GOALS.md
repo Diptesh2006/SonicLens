@@ -20,14 +20,14 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-14 | Results have inspectable, persistent evidence IDs and source samples | PASS | API verifies storage/retrieval; browser expanded table with 168 source rows matching first/last persisted UTC timestamps |
 | DOD-15 | Authentic server-side Gnani Prisma adapter | PASS | Authenticated live Prisma call transcribed a spoken test clip as “Find unusual spikes” and detected `en-IN` |
 | DOD-16 | Authentic server-side Gnani Timbre adapter | PASS | Two authenticated live calls returned RIFF WAV audio; response latency was reported by the service |
-| DOD-17 | Live Gnani microphone-to-spoken-answer journey | IN_PROGRESS | Live PCM→Prisma→anomaly analysis→Timbre path returned the grounded 2.35 kWh result and WAV; browser mic control is enabled, but physical microphone capture/output has not been exercised |
+| DOD-17 | Live Gnani microphone-to-spoken-answer journey | IN_PROGRESS | Live PCM→Prisma→anomaly analysis→Timbre path returned the grounded 2.35 kWh result and WAV; production browser voice UI is ready, but physical microphone capture/output has not been exercised |
 | DOD-18 | Hindi-English spoken request verified | IN_PROGRESS | Credentials and endpoints configured; English provider round-trip passed, Hindi-English live utterance remains unverified |
 | DOD-19 | Actionable upload and API errors | PASS | 28 API tests cover invalid schema, duplicates, non-finite values, invalid metrics/ranges and voice errors |
 | DOD-20 | Synthetic data and local audio labels are honest | PASS | Browser confirmed synthetic fixture labels, unconfigured voice label and no synthetic badge on CSV uploads by implementation |
-| DOD-21 | Responsive desktop and mobile layout | PASS | Browser at 390×844 showed key controls, evidence table and chart; document scroll width remained 390 px; screenshot visually reviewed |
+| DOD-21 | Responsive desktop and mobile layout | PASS | Production browser at 1365×900 and 390×844 showed the voice prompt, chart and energy summary; document width matched viewport; mobile screenshot visually reviewed |
 | DOD-22 | Server-side keys, bounded uploads, constrained operations | PASS | API tests confirm missing credentials and limits; voice keys are read server-side and operation routing is bounded |
-| DOD-23 | Backend tests, frontend typecheck and production build | PASS | `python -m pytest test_api.py -q` 28 passed; `npm run typecheck` and `npm run build` exit 0 |
-| DOD-24 | Browser end-to-end seeded exploration | PASS | Production browser loaded app; trend/anomaly/comparison, range, playback and telemetry switch checked; final console had 0 errors |
+| DOD-23 | Backend tests, frontend typecheck and production build | PASS | 29 Oct 2026: `python -m pytest test_api.py -q` 28 passed; TypeScript `--noEmit --incremental false` and `next build` exit 0 |
+| DOD-24 | Browser end-to-end seeded exploration | PASS | 29 Oct 2026 production browser loaded seeded energy, typed “Find unusual spikes” returned the calculated 2.35 kWh peak with an evidence ID; desktop/mobile widths checked; console had 0 errors and warnings |
 | DOD-25 | Repeatable demo recording flow | IN_PROGRESS | Resettable browser walkthrough works; audio capture recording was not produced in this environment |
 | DOD-26 | Setup, architecture, API, voice, audio and demo docs | PASS | README, architecture, API, Gnani setup, sonification, demo and sound evaluation docs reviewed and updated against current implementation |
 | DOD-27 | Energy and telemetry share engine | PASS | Browser switched energy→telemetry and analysis updated to the telemetry metric without errors |
