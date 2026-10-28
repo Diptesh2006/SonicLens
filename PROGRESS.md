@@ -13,6 +13,7 @@ Current checkpoint: data/audio workspace, deterministic analysis and constrained
 - Session focus validation, deterministic demo reset, strict CSV timestamp/value validation.
 - Intent clarification controls, metric aliases, tariff-grounded cost routing, and explicit refusal to infer causes from measurements alone.
 - True pause/resume/stop state; CSV unit correction and missing-value counts; distinct telemetry units; missing observations excluded from analysis/audio and comparison pairs.
+- Analysis evidence and plans persist in SQLite and can be reloaded by analysis ID; microphone PCM cap matches the UI recording limit.
 - Next.js workspace with backend chart, metric/mode selection, range control, actual Web Audio sonification, playback cursor/rate/volume and CSV upload.
 - PRD and user supplied master prompt copied to repository.
 

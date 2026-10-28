@@ -20,6 +20,8 @@ Results recorded 2026-10-28 (local Windows/OneDrive checkout):
 - Latest `npm run typecheck` after unit/sampling editor: **PASS**, exit 0.
 - Latest backend suite: `python -m pytest test_api.py -q`: **PASS**, 26 passed, including shifted-window time-of-day alignment and pair evidence.
 - Latest `npm run typecheck` after evidence metadata and voice status UI: **PASS**, exit 0.
+- Latest backend suite: `python -m pytest test_api.py -q`: **PASS**, 28 passed, including stored evidence reload and the 12-second PCM limit.
+- Latest `npm run typecheck` after evidence reload control: **PASS**, exit 0.
 - `git diff --check`: **PASS** before first commit.
 
 Not yet run: browser/manual audio, responsive UI, API process smoke, or browser E2E. Do not infer results from source inspection.

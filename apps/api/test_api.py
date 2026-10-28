@@ -236,3 +236,19 @@ def test_energy_comparison_aligns_clock_time_and_returns_pair_evidence():
     assert comparison["aligned_points"] == 24
     assert all(datetime.fromisoformat(samples[p["index_a"]]["timestamp"]).hour == datetime.fromisoformat(samples[p["index_b"]]["timestamp"]).hour for p in comparison["pairs"])
     assert result["focus_indices"] == sorted({index for pair in comparison["pairs"] for index in (pair["index_a"],pair["index_b"])})
+
+
+def test_analysis_evidence_is_persisted_and_retrievable():
+    result = client.post("/api/analysis", json={"dataset_id":"energy-week","metric":"usage_kwh","mode":"anomaly"}).json()
+    saved = client.get(f"/api/analysis/{result['analysis_id']}")
+    assert saved.status_code == 200
+    assert saved.json()["evidence"] == result["evidence"]
+    assert saved.json()["plan"]["analysis_id"] == result["analysis_id"]
+    assert client.get("/api/analysis/unknown").status_code == 404
+
+
+def test_speak_pcm_limit_matches_browser_capture_duration():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    audio = base64.b64encode(bytes(16000*2*13)).decode()
+    response = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"sample_rate":16000})
+    assert response.status_code == 400 and "0.25–12 seconds" in response.json()["detail"]

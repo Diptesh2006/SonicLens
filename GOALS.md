@@ -17,7 +17,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-11 | Chart cursor tracks scheduled notes | IN_PROGRESS | Browser verification pending |
 | DOD-12 | Constrained natural-language intent routes analysis | PASS | 19 API tests cover English/Hinglish spike intent, metric alias and tariff-based energy cost; unrecognized intent clarifies |
 | DOD-13 | Follow-up context resolution | PASS | Tests verify selected-range previous-period comparison, replay at 0.5×, session persistence and no unsupported causal answer |
-| DOD-14 | Results have inspectable evidence IDs and source samples | PASS | API returns analysis ID, selected source observations, event evidence and typed sonification plan; API tests pass |
+| DOD-14 | Results have inspectable, persistent evidence IDs and source samples | PASS | 28 tests verify analysis and plan ID persistence, exact evidence retrieval and missing-ID 404; UI exposes reload by ID |
 | DOD-15 | Authentic server-side Gnani Prisma adapter | IN_PROGRESS | Official streaming contract implemented; mock tests pass; live credential call not run |
 | DOD-16 | Authentic server-side Gnani Timbre adapter | IN_PROGRESS | Official REST/WAV contract implemented; mock tests pass; live credential call not run |
 | DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | No `GNANI_*` credentials configured; adapters/UI path implemented but authenticated run remains outstanding |

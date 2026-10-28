@@ -98,6 +98,7 @@ def init_db() -> None:
     with connect_db() as db:
         db.execute("CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
         for dataset in seeds().values():
             db.execute("INSERT OR REPLACE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
 
@@ -115,6 +116,7 @@ def reset_demo_data() -> dict[str, Dataset]:
     with connect_db() as db:
         db.execute("DELETE FROM datasets WHERE id NOT IN (?,?)", tuple(seeded))
         db.execute("DELETE FROM sessions")
+        db.execute("DELETE FROM analyses")
         for dataset in seeded.values():
             db.execute("INSERT OR REPLACE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
     return seeded
@@ -421,7 +423,19 @@ def analyze(request: AnalyzeRequest):
     analysis_id = f"ana-{uuid4().hex[:10]}"
     plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end and request.metric in dataset.samples[index].values]
     metric_unit = dataset.metric_units.get(request.metric, dataset.unit)
-    return {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "missing_count": dataset.missing_counts.get(request.metric, 0), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": metric_unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
+    result = {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "missing_count": dataset.missing_counts.get(request.metric, 0), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": metric_unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
+    with connect_db() as db:
+        db.execute("INSERT INTO analyses(id,dataset_id,payload) VALUES(?,?,?)", (analysis_id, dataset.id, json.dumps(result, separators=(",", ":"), default=lambda value: value.model_dump() if isinstance(value, BaseModel) else str(value))))
+    return result
+
+
+@app.get("/api/analysis/{analysis_id}")
+def get_analysis(analysis_id: str):
+    with connect_db() as db:
+        row = db.execute("SELECT payload FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Analysis evidence not found")
+    return json.loads(row["payload"])
 
 
 @app.post("/api/sessions", response_model=VoiceSession)
@@ -531,8 +545,8 @@ async def speak_query(request: SpeakRequest):
         pcm = base64.b64decode(request.audio_base64, validate=True)
     except (ValueError, base64.binascii.Error) as exc:
         raise HTTPException(400, "Audio must be valid base64 PCM") from exc
-    if len(pcm) < request.sample_rate // 4 or len(pcm) > 8_000_000 or len(pcm) % 2:
-        raise HTTPException(400, "PCM audio must be 0.25–250 seconds of 16-bit mono audio")
+    if len(pcm) < request.sample_rate // 4 or len(pcm) > request.sample_rate * 2 * 12 or len(pcm) % 2:
+        raise HTTPException(400, "PCM audio must be 0.25–12 seconds of 16-bit mono audio")
     transcript, language = await prisma_transcribe(pcm, request.sample_rate, request.language_code)
     query = QueryRequest(session_id=request.session_id, dataset_id=request.dataset_id, metric=request.metric, text=transcript, tariff=request.tariff)
     result = query_session(query)
