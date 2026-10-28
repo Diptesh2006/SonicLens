@@ -65,4 +65,4 @@ Add `GNANI_API_KEY` to the repository-root `.env`; the API loads it when it star
 - The blinded listening protocol is a proposed formative test, not a completed participant study; SonicLens makes no efficacy or accessibility-validation claims.
 - A recorded end-to-end demo artifact has not yet been captured.
 
-See [PRD.md](PRD.md), [GOALS.md](GOALS.md), [PROGRESS.md](PROGRESS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/SONIFICATION.md](docs/SONIFICATION.md), [docs/DEMO.md](docs/DEMO.md), and [docs/SOUND_EVALUATION.md](docs/SOUND_EVALUATION.md).
+See [PRD.md](PRD.md), [GOALS.md](GOALS.md), [PROGRESS.md](PROGRESS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/GNANI_SETUP.md](docs/GNANI_SETUP.md), [docs/SONIFICATION.md](docs/SONIFICATION.md), [docs/DEMO.md](docs/DEMO.md), and [docs/SOUND_EVALUATION.md](docs/SOUND_EVALUATION.md).
