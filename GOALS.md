@@ -10,7 +10,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-04 | Chart shows backend observations and selected metric/range | PASS | Browser range changed energy coverage 168→48; dataset switch showed telemetry latency and its range-specific values |
 | DOD-05 | Summary, local peaks, outlier, abrupt-change and aligned period comparison | PASS | API tests verify computed values; browser comparison returned 84 aligned time-of-day pairs |
 | DOD-06 | Energy cost uses labeled tariff and confirmed interval kWh; never treats kW as kWh | PASS | API tests cover seed tariff, explicit CSV kWh confirmation and no estimate for kW power samples |
-| DOD-07 | Browser generates data-mapped trend audio | IN_PROGRESS | Web Audio is gesture-started and cursor advances; audio device output has not been independently heard |
+| DOD-07 | Browser generates data-mapped trend audio | PASS | Production browser generated sonification after a user gesture; play state, timeline progress and reading timestamp advanced, and Stop restored the ready state. Physical speaker/headphone audibility remains unverified |
 | DOD-08 | Anomaly mode focuses detected intervals | PASS | Browser selected anomaly mode; persisted analysis returned event focus; playback controls operated |
 | DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | 84 aligned energy pairs verified in browser; comparison playback cursor advances over paired indices and uses signed difference pitch mapping |
 | DOD-10 | Playback controls, focus range, rate, volume | PASS | Browser verified play, pause, resume, stop and range; speed set to 2×, volume set to 0 and cursor still advanced silently |

@@ -30,6 +30,7 @@ The API reads server configuration from the repository-root `.env` at startup. A
 ## Verification evidence
 
 - 29 October 2026: production browser loaded seeded household energy with “VOICE READY”; typed “Find unusual spikes” returned the calculated 2.35 kWh peak with a persisted evidence ID.
+- Production-browser sonification started from a user gesture, advanced timeline and reading timestamp, and stopped cleanly.
 - AudioWorklet browser simulation captured a Gnani-generated English utterance at 16 kHz; the real Prisma→analysis→Timbre route transcribed “Find unusual spikes,” returned the grounded 2.35 kWh answer, and exposed spoken replay. A code-mixed “Sirf unusual consumption spikes sunao” fixture was recognized as “Surf unusual consumption spikes soon” and routed to anomaly analysis. Silent input timed out with a retry message and sent no request. Browser console had no errors or deprecation warnings.
 - The generated speech fixtures validate browser capture and the live provider chain, but do not replace testing with the user's physical microphone and speakers.
 - Desktop browser at 1365×900 and mobile at 390×844: primary voice action, chart and energy summary were visible; document width matched viewport width; browser console had zero errors or warnings.
