@@ -9,5 +9,7 @@
 - `POST /api/sessions?dataset_id=…&metric=…`: create a persistent exploration session.
 - `GET /api/sessions/{session_id}` and `POST /api/sessions/{session_id}/focus`: inspect session context and set a validated selected range.
 - `POST /api/voice/query`: constrained local text intent; returns the deterministic analysis and answer. This is not Gnani STT/TTS and does not speak.
+- `POST /api/voice/speak`: bounded base64 mono PCM plus active dataset/session; uses real Prisma, deterministic analysis, then real Timbre WAV when server credentials are configured. It returns HTTP 503 when credentials are absent.
+- `POST /api/voice/synthesize`: `{text, language}`; returns provider audio only when configured.
 
 Interactive schema: `/docs`. Datasets currently live in API process memory. API validation errors use standard FastAPI status/detail responses.

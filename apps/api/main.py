@@ -7,6 +7,10 @@ import os
 import re
 import sqlite3
 import statistics
+import asyncio
+import base64
+import json
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import uuid4
@@ -14,6 +18,8 @@ from uuid import uuid4
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import httpx
+import websockets
 
 app = FastAPI(title="SonicLens API", version="0.1.0", description="Grounded time-series analysis and sonification plans")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
@@ -136,6 +142,93 @@ class QueryRequest(BaseModel):
     tariff: float = Field(default=8, ge=0)
 
 
+class SpeakRequest(BaseModel):
+    session_id: str
+    dataset_id: str
+    metric: str
+    audio_base64: str = Field(min_length=1, max_length=16_000_000)
+    sample_rate: Literal[16000, 44100, 48000] = 16000
+    language_code: str = "indic-auto"
+    tariff: float = Field(default=8, ge=0)
+
+
+class SynthesizeRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=3000)
+    language: str = "auto"
+
+
+def gnani_key() -> str | None:
+    return os.getenv("GNANI_API_KEY")
+
+
+def gnani_ready() -> bool:
+    return bool(gnani_key())
+
+
+async def prisma_transcribe(pcm: bytes, sample_rate: int, language_code: str) -> tuple[str, str | None]:
+    key = gnani_key()
+    if not key:
+        raise HTTPException(503, "Gnani Prisma is not configured. Set GNANI_API_KEY on the API server.")
+    headers = {"x-api-key-id": key, "x-model": os.getenv("GNANI_PRISMA_MODEL", "prisma-v3.0"), "lang_code": language_code, "x-sample-rate": str(sample_rate), "x-format": "transcribe", "x-idle-timeout-sec": "10"}
+    transcript = ""
+    detected = None
+    try:
+        async with websockets.connect(os.getenv("GNANI_PRISMA_URL", "wss://api.vachana.ai/stt/v3/stream"), additional_headers=headers, open_timeout=10, close_timeout=3, max_size=2_000_000) as ws:
+            async def send_audio():
+                # 100 ms PCM frames paced at source cadence, as Prisma expects for VAD.
+                chunk_size = sample_rate * 2 // 10
+                for offset in range(0, len(pcm), chunk_size):
+                    chunk = pcm[offset:offset + chunk_size]
+                    await ws.send(chunk)
+                    await asyncio.sleep(len(chunk) / (sample_rate * 2))
+                await ws.send(json.dumps({"type": "commit"}))
+            async def receive_transcript():
+                nonlocal transcript, detected
+                async for message in ws:
+                    frame = json.loads(message)
+                    if frame.get("type") == "transcript":
+                        transcript = (transcript + " " + frame.get("text", "")).strip()
+                        detected = frame.get("detected_language_code", detected)
+                    elif frame.get("type") == "error":
+                        raise HTTPException(502, f"Gnani Prisma error: {frame.get('message', 'transcription failed')}")
+                    if transcript:
+                        break
+            await asyncio.wait_for(asyncio.gather(send_audio(), receive_transcript()), timeout=30)
+    except HTTPException:
+        raise
+    except (TimeoutError, asyncio.TimeoutError) as exc:
+        raise HTTPException(504, "Gnani Prisma transcription timed out") from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Gnani Prisma connection failed: {type(exc).__name__}") from exc
+    if not transcript:
+        raise HTTPException(422, "Prisma returned an empty transcript; please try again")
+    return transcript, detected
+
+
+async def timbre_synthesize(text: str, language: str = "auto") -> tuple[bytes, float]:
+    key = gnani_key()
+    if not key:
+        raise HTTPException(503, "Gnani Timbre is not configured. Set GNANI_API_KEY on the API server.")
+    payload = {"text": text[:3000], "model": os.getenv("GNANI_TIMBRE_MODEL", "timbre-v2.5"), "voice": os.getenv("GNANI_TIMBRE_VOICE", "Nalini"), "language": language, "speed": 1.0, "audio_config": {"encoding": "linear_pcm", "container": "wav", "num_channels": 1, "sample_rate": 48000, "sample_width": 2}}
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(os.getenv("GNANI_TIMBRE_URL", "https://api.vachana.ai/api/v1/tts/inference"), headers={"X-API-Key-ID": key}, json=payload)
+        response.raise_for_status()
+        audio = response.content
+        if not audio.startswith(b"RIFF") or len(audio) < 44:
+            raise HTTPException(502, "Gnani Timbre response was not a valid WAV audio file")
+        return audio, round((time.perf_counter()-started)*1000, 1)
+    except HTTPException:
+        raise
+    except httpx.TimeoutException as exc:
+        raise HTTPException(504, "Gnani Timbre synthesis timed out") from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(502, f"Gnani Timbre returned HTTP {exc.response.status_code}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Gnani Timbre connection failed") from exc
+
+
 def get_session(session_id: str) -> VoiceSession:
     with connect_db() as db:
         row = db.execute("SELECT payload FROM sessions WHERE id=?", (session_id,)).fetchone()
@@ -151,7 +244,7 @@ def save_session(session: VoiceSession) -> None:
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "datasets": len(load_datasets()), "storage": "sqlite"}
+    return {"status": "ok", "datasets": len(load_datasets()), "storage": "sqlite", "voice": {"provider": "Gnani", "configured": gnani_ready(), "stt_model": os.getenv("GNANI_PRISMA_MODEL", "prisma-v3.0"), "tts_model": os.getenv("GNANI_TIMBRE_MODEL", "timbre-v2.5")}}
 
 
 @app.get("/api/datasets")
@@ -330,6 +423,27 @@ def query_session(request: QueryRequest):
     session.turns = session.turns[-40:]
     save_session(session)
     return {"session": session, "analysis": result, "answer": explain_result(result), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+
+
+@app.post("/api/voice/speak")
+async def speak_query(request: SpeakRequest):
+    try:
+        pcm = base64.b64decode(request.audio_base64, validate=True)
+    except (ValueError, base64.binascii.Error) as exc:
+        raise HTTPException(400, "Audio must be valid base64 PCM") from exc
+    if len(pcm) < request.sample_rate // 4 or len(pcm) > 8_000_000 or len(pcm) % 2:
+        raise HTTPException(400, "PCM audio must be 0.25–250 seconds of 16-bit mono audio")
+    transcript, language = await prisma_transcribe(pcm, request.sample_rate, request.language_code)
+    query = QueryRequest(session_id=request.session_id, dataset_id=request.dataset_id, metric=request.metric, text=transcript, tariff=request.tariff)
+    result = query_session(query)
+    audio, latency_ms = await timbre_synthesize(result["answer"], language or "auto")
+    return {**result, "provider": "gnani_live", "transcript": transcript, "detected_language": language, "audio_base64": base64.b64encode(audio).decode("ascii"), "tts_latency_ms": latency_ms}
+
+
+@app.post("/api/voice/synthesize")
+async def speak_text(request: SynthesizeRequest):
+    audio, latency_ms = await timbre_synthesize(request.text, request.language)
+    return {"audio_base64": base64.b64encode(audio).decode("ascii"), "latency_ms": latency_ms, "provider": "gnani_live"}
 
 
 def explain_result(result: dict) -> str:

@@ -1,5 +1,7 @@
 import os
 import tempfile
+import base64
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 _test_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -85,3 +87,32 @@ def test_csv_normalizes_order_and_rejects_duplicate_timestamps():
 def test_csv_rejects_infinite_values_instead_of_silently_dropping_series():
     result = client.post("/api/datasets/import", files={"file": ("infinite.csv", b"timestamp,reading\n2026-01-01T00:00:00Z,Infinity\n", "text/csv")})
     assert result.status_code == 400 and "Infinity" in result.json()["detail"]
+
+
+def test_voice_route_surfaces_missing_gnani_credentials():
+    session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
+    audio = base64.b64encode(bytes(16000)).decode()
+    with patch("main.gnani_key", return_value=None):
+        response = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"sample_rate":16000})
+    assert response.status_code == 503 and "GNANI_API_KEY" in response.json()["detail"]
+
+
+def test_voice_route_rejects_invalid_pcm_before_provider_call():
+    session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
+    with patch("main.prisma_transcribe", new_callable=AsyncMock) as transcribe:
+        response = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":"@@@","sample_rate":16000})
+    assert response.status_code == 400
+    transcribe.assert_not_awaited()
+
+
+def test_voice_route_uses_provider_transcript_and_returns_valid_wav():
+    session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
+    audio = base64.b64encode(bytes(16000)).decode()
+    wav = b"RIFF" + bytes(40)
+    with patch("main.prisma_transcribe", new_callable=AsyncMock, return_value=("Find unusual spikes", "en-IN")), patch("main.timbre_synthesize", new_callable=AsyncMock, return_value=(wav, 321.4)):
+        response = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"sample_rate":16000})
+    assert response.status_code == 200
+    assert response.json()["transcript"] == "Find unusual spikes"
+    assert response.json()["analysis"]["mode"] == "anomaly"
+    assert base64.b64decode(response.json()["audio_base64"]) == wav
+    assert response.json()["tts_latency_ms"] == 321.4

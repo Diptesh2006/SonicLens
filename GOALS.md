@@ -18,15 +18,15 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-12 | Constrained natural-language intent routes analysis | IN_PROGRESS | `/api/voice/query` maps bounded phrase families to deterministic tools; fixture test passes |
 | DOD-13 | Follow-up context resolution | IN_PROGRESS | SQLite session stores selected dataset/metric/mode/focus/turns; simple previous-day and slow replay resolution; broader semantics pending |
 | DOD-14 | Results have inspectable evidence IDs and source samples | IN_PROGRESS | API response implemented; test pending |
-| DOD-15 | Authentic server-side Gnani Prisma adapter | NOT_STARTED | Credentials/configuration not inspected beyond environment names |
-| DOD-16 | Authentic server-side Gnani Timbre adapter | NOT_STARTED | Credentials/configuration not inspected beyond environment names |
-| DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | No Gnani credentials found in process environment; recheck at integration phase |
+| DOD-15 | Authentic server-side Gnani Prisma adapter | IN_PROGRESS | Official streaming contract implemented; mock tests pass; live credential call not run |
+| DOD-16 | Authentic server-side Gnani Timbre adapter | IN_PROGRESS | Official REST/WAV contract implemented; mock tests pass; live credential call not run |
+| DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | No `GNANI_*` credentials configured; adapters/UI path implemented but authenticated run remains outstanding |
 | DOD-18 | Hindi-English spoken request verified | NOT_STARTED | Depends on configured live provider/model |
 | DOD-19 | Actionable upload and API errors | IN_PROGRESS | Automated checks pending |
 | DOD-20 | Synthetic data and local audio labels are honest | IN_PROGRESS | UI labels; visual review pending |
 | DOD-21 | Responsive desktop and mobile layout | IN_PROGRESS | CSS added; browser check pending |
 | DOD-22 | Server-side keys, bounded uploads, constrained operations | IN_PROGRESS | No voice keys in frontend; upload cap implemented; audit pending |
-| DOD-23 | Backend tests, frontend typecheck and production build | FAIL | pytest 10 passed; `npm run typecheck` passed; production build blocked by incomplete synced `node_modules` packages (`caniuse-lite`, lodash, lucide-react) |
+| DOD-23 | Backend tests, frontend typecheck and production build | FAIL | pytest 13 passed; `npm run typecheck` passed; production build blocked by missing ignored `node_modules/caniuse-lite/data/features/html-media-capture.js` in synced workspace |
 | DOD-24 | Browser end-to-end seeded exploration | NOT_STARTED | Browser test tooling not inspected |
 | DOD-25 | Repeatable demo recording flow | NOT_STARTED | — |
 | DOD-26 | Setup, architecture, API, voice, audio and demo docs | IN_PROGRESS | Initial docs planned in this slice |

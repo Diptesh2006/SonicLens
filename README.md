@@ -39,6 +39,7 @@ Run API tests with `cd apps/api; python -m pytest -q`. Run web checks with `cd a
 - Backend mean, range, robust outlier and abrupt-change analysis; energy cost uses the explicitly labeled ₹8/kWh demo tariff (editable through the API).
 - CSV import accepts up to 10 MB and 50,000 rows, with an explicit time column and numeric metric.
 - Trend/anomaly/comparison playback maps values to local oscillator tones after clicking Play. Browser autoplay restrictions are respected by the user gesture.
-- Gnani Prisma/Timbre, SQLite persistence, conversational sessions, fully aligned period comparison, and browser E2E are not implemented yet. The microphone control is disabled and voice is labeled unconfigured.
+- SQLite persistence, conversational sessions, aligned period comparison and bounded local intent analysis are implemented. Gnani Prisma/Timbre adapters and microphone/WAV UI are implemented, but live calls require credentials; the microphone stays disabled until the API reports configuration.
+- Frontend production build currently fails in this OneDrive-synced checkout because `node_modules/caniuse-lite/data/features/html-media-capture.js` is absent despite npm reporting a successful install. `npm run typecheck` passes; use a non-synced checkout or repair the local package tree before treating the web build as verified.
 
 See [PRD.md](PRD.md), [GOALS.md](GOALS.md), and [PROGRESS.md](PROGRESS.md) for scope and current status.
