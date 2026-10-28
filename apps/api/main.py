@@ -332,6 +332,7 @@ def analyze(request: AnalyzeRequest):
     changes = [{"index": start+i, "timestamp": selected[i].timestamp, "value": v, "delta": round(v-values[i-1], 4)} for i, v in enumerate(values) if i and abs(v-values[i-1]) >= max(mad*3, abs(median)*0.5)]
     peak_index = max(range(len(values)), key=values.__getitem__)
     focus = set(e["index"] for e in events)
+    peaks = [{"index": start+i, "timestamp": selected[i].timestamp, "value": values[i]} for i in range(1, len(values)-1) if values[i] >= values[i-1] and values[i] > values[i+1] and values[i] >= median + mad*1.5]
     comparison = None
     if request.mode == "anomaly":
         focus.update(e["index"] for e in changes)
@@ -351,7 +352,7 @@ def analyze(request: AnalyzeRequest):
         focus.update(range(start, end))
     cost = round(sum(values)*request.tariff, 2) if dataset.domain == "energy" and request.metric == "usage_kwh" else None
     plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if index < len(dataset.samples)]
-    return {"analysis_id": f"ana-{uuid4().hex[:10]}", "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None}, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210, "analysis_id": f"ana-current"}, "evidence": selected}
+    return {"analysis_id": f"ana-{uuid4().hex[:10]}", "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
 
 
 @app.post("/api/sessions", response_model=VoiceSession)

@@ -116,3 +116,11 @@ def test_voice_route_uses_provider_transcript_and_returns_valid_wav():
     assert response.json()["analysis"]["mode"] == "anomaly"
     assert base64.b64decode(response.json()["audio_base64"]) == wav
     assert response.json()["tts_latency_ms"] == 321.4
+
+
+def test_analysis_returns_local_peaks_and_energy_semantics():
+    result = client.post("/api/analysis", json={"dataset_id":"energy-week","metric":"usage_kwh","mode":"trend"}).json()
+    assert result["peaks"]
+    assert all(result["peaks"][i]["value"] >= result["peaks"][i-1]["value"] for i in range(1,len(result["peaks"]))) is False or len(result["peaks"]) > 1
+    assert result["summary"]["energy_semantics"] == "interval kWh multiplied by supplied tariff"
+    assert result["summary"]["tariff_per_kwh"] == 8

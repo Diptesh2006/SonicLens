@@ -19,7 +19,8 @@ Phase 1 data vertical slice: first implementation committed; backend tests and w
 - Backend: `python -m pytest test_api.py -q` → 10 passed (CSV validation, comparison, session focus/query persistence and demo reset).
 - Frontend `npm run typecheck` → pass.
 - Frontend `npm run build` → failed because installed `caniuse-lite/dist/lib/statuses` is missing. `npm install` exits successfully but leaves this package incomplete here.
-- No browser visual or audible verification has been performed yet.
+- No browser visual or audible verification has been performed: Next client compilation succeeds but a later runtime/build worker exits parsing JSON metadata, before binding localhost:3000.
+- Gnani server adapters and microphone UI exist; provider tests are mocked. Live Prisma/Timbre remains blocked by absent credentials.
 - Gnani integration is not implemented or verified. Voice button is visibly disabled.
 - SQLite persistence, sessions/follow-up agent, robust comparisons, production polish and browser verification remain.
 
