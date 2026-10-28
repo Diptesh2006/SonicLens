@@ -20,8 +20,8 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-14 | Results have inspectable, persistent evidence IDs and source samples | PASS | API verifies storage/retrieval; browser expanded table with 168 source rows matching first/last persisted UTC timestamps |
 | DOD-15 | Authentic server-side Gnani Prisma adapter | IN_PROGRESS | Official streaming adapter and mocked contract tests implemented; authenticated live request not run |
 | DOD-16 | Authentic server-side Gnani Timbre adapter | IN_PROGRESS | Official REST/WAV adapter and mocked tests implemented; authenticated live request not run |
-| DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | No provider credentials configured in API environment; route surfaces 503 and mic is disabled |
-| DOD-18 | Hindi-English spoken request verified | BLOCKED_EXTERNAL | Requires configured provider credentials/model and live microphone run |
+| DOD-17 | Live Gnani microphone-to-spoken-answer journey | BLOCKED_EXTERNAL | Local `.env` is ready but `GNANI_API_KEY` is blank; route surfaces 503 and mic is disabled |
+| DOD-18 | Hindi-English spoken request verified | BLOCKED_EXTERNAL | Requires configured key, account-entitled model, and live microphone run |
 | DOD-19 | Actionable upload and API errors | PASS | 28 API tests cover invalid schema, duplicates, non-finite values, invalid metrics/ranges and voice errors |
 | DOD-20 | Synthetic data and local audio labels are honest | PASS | Browser confirmed synthetic fixture labels, unconfigured voice label and no synthetic badge on CSV uploads by implementation |
 | DOD-21 | Responsive desktop and mobile layout | PASS | Browser at 390×844 showed key controls, evidence table and chart; document scroll width remained 390 px; screenshot visually reviewed |

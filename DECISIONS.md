@@ -1,9 +1,9 @@
 # Decisions
 
-- **Initial slice is an in-memory API.** Keeping seeded datasets inspectable and the first end-to-end slice small makes analytics behavior easy to verify. SQLite persistence is still required and is a follow-up milestone.
-- **Use custom Web Audio tones.** Numeric value maps linearly to oscillator pitch; event-focused mode uses a triangle timbre while trend uses sine. No speech or external audio assets are represented as data sonification.
-- **Synthetic seeds are explicit.** Household and API series are generated deterministically and labeled synthetic in the API/UI.
-- **Voice is disabled until integrated.** No browser speech synthesis or fixture is represented as Gnani. Live STT/TTS requires a server-side provider adapter and credentials.
-- **Energy seed stores interval kWh.** The labeled ₹8/kWh demo tariff is configurable in the analysis API, and cost multiplies interval quantities directly; raw kW is not treated as energy.
-- **Comparison aligns equal offsets in two adjacent equal-length windows.** It reports per-offset differences and a mean difference in the metric's unit; it does not imply causation.
-- **Local intent is constrained deterministic routing.** A bounded phrase-to-tool layer provides inspectable analysis while the live speech path awaits verified provider adapters; the UI labels its local nature.
+- **Backend persistence:** datasets, analysis evidence and voice sessions use SQLite in the local API. The database defaults to `apps/api/soniclens.db`; `SONICLENS_DB_PATH` can override it for isolated runs and tests.
+- **Custom Web Audio:** numeric values and analysis plans map to oscillator tones after a user gesture. Trend uses sine tones, event-focused playback uses triangle tones, and comparison uses signed aligned differences. No speech or external audio is described as sonification.
+- **Synthetic seeds are explicit:** energy and telemetry series are deterministic fixtures and labeled synthetic in the API/UI.
+- **Voice is optional and authentic:** no browser speech synthesis or fixture is represented as Gnani. Prisma STT and Timbre TTS use server-side credentials loaded from the environment or repository-root `.env`.
+- **Energy seed stores interval kWh:** the editable ₹/kWh tariff multiplies interval quantities directly; raw kW is not treated as energy.
+- **Comparison uses aligned windows:** energy compares matching times of day; other series compare sequence positions. Returned pairs preserve exact source indices and differences; they do not imply causation.
+- **Local intent is constrained deterministic routing:** bounded phrase-to-tool handling provides inspectable analysis without arbitrary code execution or fabricated values. Live voice requires configured Gnani credentials.

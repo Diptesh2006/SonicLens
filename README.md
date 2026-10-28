@@ -11,6 +11,8 @@ SonicLens explores time-series data with deterministic analysis, a synchronized 
 
 From the repository root, use two PowerShell terminals.
 
+Before starting the API, open the repository-root `.env` file and paste your Gnani key after `GNANI_API_KEY=`. That file is ignored by Git. The API loads it automatically; do not commit it or paste the key into chat. The checked-in `.env.example` is a safe template.
+
 Terminal 1 — API:
 
 ```powershell
@@ -53,7 +55,7 @@ npm run build
 
 ## Gnani configuration
 
-Set `GNANI_API_KEY` in the API server environment. Optional model and endpoint settings are documented in [docs/GNANI_SETUP.md](docs/GNANI_SETUP.md). The current environment has no Gnani credentials, so authenticated STT/TTS calls have not been verified. Provider mocks are not live-integration evidence.
+Add `GNANI_API_KEY` to the repository-root `.env`; the API loads it when it starts. Optional model and endpoint settings are documented in [docs/GNANI_SETUP.md](docs/GNANI_SETUP.md). Live STT/TTS calls must be verified with your account; provider mocks are not live-integration evidence.
 
 ## Known limitations
 

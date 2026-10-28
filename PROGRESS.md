@@ -4,6 +4,8 @@
 
 Core data import, deterministic analysis, three sound modes, constrained text/voice adapters, evidence persistence, and browser workspace are implemented. Production build, CSV upload, explicit unit/cost flow, 390px layout, and browser journeys pass from the actual OneDrive checkout. Remaining work is final documentation/demo review and audio capture verification; authenticated live Gnani access is unavailable in the current environment.
 
+The API now reads server configuration from the repository-root `.env` at startup. The local `.env` contains no key yet; the owner can add it without exposing the value in chat.
+
 ## Recent product slices
 
 - Fixed dataset provenance labels and added branded favicon.

@@ -14,12 +14,16 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import uuid4
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
 import websockets
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 app = FastAPI(title="SonicLens API", version="0.1.0", description="Grounded time-series analysis and sonification plans")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
@@ -195,7 +199,7 @@ async def prisma_transcribe(pcm: bytes, sample_rate: int, language_code: str) ->
     transcript = ""
     detected = None
     try:
-        async with websockets.connect(os.getenv("GNANI_PRISMA_URL", "wss://api.vachana.ai/stt/v3/stream"), additional_headers=headers, open_timeout=10, close_timeout=3, max_size=2_000_000) as ws:
+        async with websockets.connect(os.getenv("GNANI_PRISMA_URL") or "wss://api.vachana.ai/stt/v3/stream", additional_headers=headers, open_timeout=10, close_timeout=3, max_size=2_000_000) as ws:
             async def send_audio():
                 # 100 ms PCM frames paced at source cadence, as Prisma expects for VAD.
                 chunk_size = sample_rate * 2 // 10
@@ -235,7 +239,7 @@ async def timbre_synthesize(text: str, language: str = "auto") -> tuple[bytes, f
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(os.getenv("GNANI_TIMBRE_URL", "https://api.vachana.ai/api/v1/tts/inference"), headers={"X-API-Key-ID": key}, json=payload)
+            response = await client.post(os.getenv("GNANI_TIMBRE_URL") or "https://api.vachana.ai/api/v1/tts/inference", headers={"X-API-Key-ID": key}, json=payload)
         response.raise_for_status()
         audio = response.content
         if not audio.startswith(b"RIFF") or len(audio) < 44:
