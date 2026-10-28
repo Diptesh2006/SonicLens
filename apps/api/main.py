@@ -37,6 +37,9 @@ class Dataset(BaseModel):
     source: str
     unit: str
     metrics: list[str]
+    metric_units: dict[str, str] = {}
+    sampling_kind: Literal["interval_energy", "sampled", "unknown"] = "unknown"
+    missing_counts: dict[str, int] = {}
     samples: list[Sample]
 
 
@@ -53,6 +56,10 @@ class FocusRequest(BaseModel):
     start: int = Field(ge=0)
     end: int = Field(gt=0)
     metric: str | None = None
+
+
+class MetricUnitRequest(BaseModel):
+    unit: str = Field(min_length=1, max_length=40)
 
 
 def seeds() -> dict[str, Dataset]:
@@ -72,8 +79,8 @@ def seeds() -> dict[str, Dataset]:
         spike = 1 if 77 <= i <= 82 else 0
         telemetry.append(Sample(timestamp=(start2 + timedelta(minutes=10*i)).isoformat(), values={"latency_ms": round(105 + 15*math.sin(i/8) + 310*spike, 1), "error_count": (2 + i%3 + 16*spike)*1.0, "request_count": 48 + (i*7)%24}))
     return {
-        "energy-week": Dataset(id="energy-week", name="Household energy · 7 days", domain="energy", source="Synthetic demonstration data", unit="kWh per hour", metrics=["usage_kwh"], samples=energy),
-        "api-telemetry": Dataset(id="api-telemetry", name="API service · 24 hours", domain="generic_telemetry", source="Synthetic demonstration data", unit="ms / count", metrics=["latency_ms", "error_count", "request_count"], samples=telemetry),
+        "energy-week": Dataset(id="energy-week", name="Household energy · 7 days", domain="energy", source="Synthetic demonstration data", unit="kWh per hour", metrics=["usage_kwh"], metric_units={"usage_kwh":"kWh"}, sampling_kind="interval_energy", missing_counts={"usage_kwh":0}, samples=energy),
+        "api-telemetry": Dataset(id="api-telemetry", name="API service · 24 hours", domain="generic_telemetry", source="Synthetic demonstration data", unit="mixed metrics", metrics=["latency_ms", "error_count", "request_count"], metric_units={"latency_ms":"ms","error_count":"count","request_count":"requests / interval"}, sampling_kind="sampled", missing_counts={"latency_ms":0,"error_count":0,"request_count":0}, samples=telemetry),
     }
 
 
@@ -273,6 +280,18 @@ def get_dataset(dataset_id: str):
     return datasets[dataset_id]
 
 
+@app.patch("/api/datasets/{dataset_id}/metrics/{metric}/unit")
+def update_metric_unit(dataset_id: str, metric: str, request: MetricUnitRequest):
+    dataset = load_datasets().get(dataset_id)
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+    if metric not in dataset.metrics:
+        raise HTTPException(422, "Metric is not present in this dataset")
+    dataset.metric_units[metric] = request.unit.strip()
+    save_dataset(dataset)
+    return {"dataset_id": dataset_id, "metric": metric, "unit": dataset.metric_units[metric]}
+
+
 @app.post("/api/datasets/import")
 async def import_csv(file: UploadFile = File(...)):
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -306,14 +325,17 @@ async def import_csv(file: UploadFile = File(...)):
             raise ValueError("Add at least one numeric metric column")
         samples = [Sample(timestamp=datetime.fromisoformat(row[time_key].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat(), values={key: float(row[key]) for key in metric_keys if row[key]}) for row in rows]
         if any(not sample.values for sample in samples):
-            raise ValueError("Every row must have at least one numeric value")
+            # Entirely missing rows are retained as data-quality evidence and skipped by analysis.
+            pass
         samples.sort(key=lambda sample: sample.timestamp)
         if len({sample.timestamp for sample in samples}) != len(samples):
             raise ValueError("Duplicate timestamps are not supported; combine duplicate rows before importing")
     except (UnicodeDecodeError, csv.Error, ValueError, TypeError, AttributeError) as exc:
         raise HTTPException(400, f"Could not import CSV: {exc}") from exc
     dataset_id = f"upload-{uuid4().hex[:8]}"
-    dataset = Dataset(id=dataset_id, name=file.filename, domain="csv", source="Uploaded CSV", unit="user supplied", metrics=metric_keys, samples=samples)
+    missing_counts = {key: sum(1 for row in rows if not row[key]) for key in metric_keys}
+    metric_units = {key: "unspecified" for key in metric_keys}
+    dataset = Dataset(id=dataset_id, name=file.filename, domain="csv", source="Uploaded CSV", unit="user supplied", metrics=metric_keys, metric_units=metric_units, sampling_kind="unknown", missing_counts=missing_counts, samples=samples)
     save_dataset(dataset)
     return dataset
 
@@ -342,6 +364,7 @@ def analyze(request: AnalyzeRequest):
     peak_index = max(range(len(values)), key=values.__getitem__)
     focus = set(e["index"] for e in events)
     peaks = [{"index": start+i, "timestamp": selected[i].timestamp, "value": values[i]} for i in range(1, len(values)-1) if values[i] >= values[i-1] and values[i] > values[i+1] and values[i] >= median + mad*1.5]
+    valid_indices = [start+i for i, sample in enumerate(selected) if request.metric in sample.values]
     comparison = None
     if request.mode == "anomaly":
         focus.update(e["index"] for e in changes)
@@ -350,19 +373,24 @@ def analyze(request: AnalyzeRequest):
     elif request.mode == "comparison":
         if len(values) >= 2:
             half = len(values)//2
-            first, second = values[:half], values[-half:]
-            aligned = half
-            diffs = [second[i]-first[i] for i in range(aligned)]
+            half = len(selected)//2
+            first_window, second_window = selected[:half], selected[-half:]
+            pairs = [(left.values[request.metric], right.values[request.metric]) for left,right in zip(first_window,second_window) if request.metric in left.values and request.metric in right.values]
+            aligned = len(pairs)
+            diffs = [right-left for left,right in pairs]
+            if not aligned:
+                raise HTTPException(422, "The selected periods have no aligned observations for this metric")
             midpoint = start + half
             comparison = {"split_index": midpoint, "aligned_points": aligned, "mean_difference": round(statistics.mean(diffs), 4), "absolute_difference": round(abs(statistics.mean(diffs)), 4), "unit": dataset.unit, "period_a": {"start": start, "end": start+half}, "period_b": {"start": end-half, "end": end}, "differences": [round(value, 4) for value in diffs]}
-            focus.update(range(start, start+half))
-            focus.update(range(end-half, end))
+            focus.update(index for index in range(start, start+half) if index < len(dataset.samples) and request.metric in dataset.samples[index].values)
+            focus.update(index for index in range(end-half, end) if index < len(dataset.samples) and request.metric in dataset.samples[index].values)
     else:
         focus.update(range(start, end))
     cost = round(sum(values)*request.tariff, 2) if dataset.domain == "energy" and request.metric == "usage_kwh" else None
     analysis_id = f"ana-{uuid4().hex[:10]}"
-    plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end]
-    return {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
+    plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end and request.metric in dataset.samples[index].values]
+    metric_unit = dataset.metric_units.get(request.metric, dataset.unit)
+    return {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "missing_count": dataset.missing_counts.get(request.metric, 0), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": metric_unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
 
 
 @app.post("/api/sessions", response_model=VoiceSession)

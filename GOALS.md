@@ -5,7 +5,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | ID | Acceptance criterion | Status | Verification / evidence |
 |---|---|---|---|
 | DOD-01 | Documented local frontend and API startup | IN_PROGRESS | README commands exist; processes not yet run together |
-| DOD-02 | Bounded CSV import, UTC normalization, ordering and duplicate/non-finite validation | PASS | `python -m pytest test_api.py -q`: valid, invalid, ordering, duplicates and Infinity cases pass; 10 MB and 50k caps implemented |
+| DOD-02 | Bounded CSV import, UTC normalization, ordering, duplicate/non-finite validation, missing-value and editable unit handling | PASS | 21 API tests cover valid/invalid files, ordering, duplicates, Infinity, missing rows, missing counts and persistent metric-unit edits; 10 MB/50k caps |
 | DOD-03 | Synthetic energy and telemetry datasets | PASS | `python -m pytest test_api.py -q`: expected seeded IDs and health count passed |
 | DOD-04 | Chart shows backend observations and selected metric/range | IN_PROGRESS | Browser verification pending |
 | DOD-05 | Summary, local peaks, outlier, abrupt-change and aligned period comparison | PASS | `python -m pytest test_api.py -q`: 14 passed, including peak output and aligned offset differences |
@@ -13,7 +13,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-07 | Browser generates data-mapped trend audio | IN_PROGRESS | Manual audio check pending |
 | DOD-08 | Anomaly mode focuses detected intervals | IN_PROGRESS | API and browser checks pending |
 | DOD-09 | Comparison mode uses aligned series observations and reports differences | PASS | API tests verify equal adjacent windows, aligned point count and per-point difference list |
-| DOD-10 | Playback controls, focus range, rate, volume | IN_PROGRESS | UI wired; browser verification pending |
+| DOD-10 | Playback controls, focus range, rate, volume | IN_PROGRESS | Distinct pause/resume and stop, range, speed, volume wired; browser verification pending |
 | DOD-11 | Chart cursor tracks scheduled notes | IN_PROGRESS | Browser verification pending |
 | DOD-12 | Constrained natural-language intent routes analysis | PASS | 19 API tests cover English/Hinglish spike intent, metric alias and tariff-based energy cost; unrecognized intent clarifies |
 | DOD-13 | Follow-up context resolution | PASS | Tests verify selected-range previous-period comparison, replay at 0.5×, session persistence and no unsupported causal answer |

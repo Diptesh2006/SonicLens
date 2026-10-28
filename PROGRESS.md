@@ -12,12 +12,13 @@ Phase 1 data vertical slice: first implementation committed; backend tests and w
 - SQLite dataset/session persistence; bounded local query intent; aligned two-period comparison result.
 - Session focus validation, deterministic demo reset, strict CSV timestamp/value validation.
 - Intent clarification controls, metric aliases, tariff-grounded cost routing, and explicit refusal to infer causes from measurements alone.
+- True pause/resume/stop state; CSV unit correction and missing-value counts; distinct telemetry units; missing observations excluded from analysis/audio and comparison pairs.
 - Next.js workspace with backend chart, metric/mode selection, range control, actual Web Audio sonification, playback cursor/rate/volume and CSV upload.
 - PRD and user supplied master prompt copied to repository.
 
 ## Tests and remaining failures
 
-- Backend: `python -m pytest test_api.py -q` → 19 passed (CSV safety, comparison, sessions/followups, intent clarification, metric/cost routing, voice adapters mocked).
+- Backend: `python -m pytest test_api.py -q` → 21 passed (CSV quality and units, comparison, sessions/followups, intent clarification, metric/cost routing, voice adapters mocked).
 - Frontend `npm run typecheck` → pass.
 - Frontend `npm run build` → failed because installed `caniuse-lite/dist/lib/statuses` is missing. `npm install` exits successfully but leaves this package incomplete here.
 - No browser visual or audible verification has been performed: Next client compilation succeeds but a later runtime/build worker exits parsing JSON metadata, before binding localhost:3000.

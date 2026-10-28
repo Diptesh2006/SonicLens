@@ -14,6 +14,8 @@ Results recorded 2026-10-28 (local Windows/OneDrive checkout):
 - Latest `npm run build`: Next compiled successfully, then the build worker exited with `SyntaxError: Bad escaped character in JSON`; `npm run dev` exits with the same error before binding port 3000. All installed `package.json` files were checked and parse successfully; issue is in the synced runtime/cache metadata. Playwright CLI navigation to localhost consequently returned `ERR_CONNECTION_REFUSED`.
 - Latest backend suite after intent clarification and metric/cost/causal routing: `python -m pytest test_api.py -q`: **PASS**, 19 passed.
 - Latest `npm run typecheck` after clarification controls: **PASS**, exit 0.
+- Latest backend suite after per-metric units, missing-observation handling, and valid plan-event filtering: `python -m pytest test_api.py -q`: **PASS**, 21 passed.
+- Latest `npm run typecheck` after pause/resume controls and unit editor: **PASS**, exit 0.
 - `git diff --check`: **PASS** before first commit.
 
 Not yet run: browser/manual audio, responsive UI, API process smoke, or browser E2E. Do not infer results from source inspection.

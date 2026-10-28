@@ -169,3 +169,23 @@ def test_causal_why_question_does_not_invent_cause():
     response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Why was usage high?"}).json()
     assert response["analysis"] is None
     assert "do not identify why" in response["answer"]
+
+
+def test_datasets_expose_correct_per_metric_units_and_sampling_kind():
+    energy = client.get("/api/datasets/energy-week").json()
+    telemetry = client.get("/api/datasets/api-telemetry").json()
+    assert energy["sampling_kind"] == "interval_energy" and energy["metric_units"]["usage_kwh"] == "kWh"
+    assert telemetry["metric_units"] == {"latency_ms":"ms","error_count":"count","request_count":"requests / interval"}
+
+
+def test_csv_missing_values_and_unit_corrections_persist():
+    imported = client.post("/api/datasets/import", files={"file": ("missing.csv", b"timestamp,reading\n2026-01-01T00:00:00Z,2\n2026-01-01T01:00:00Z,\n2026-01-01T02:00:00Z,4\n", "text/csv")})
+    assert imported.status_code == 200
+    dataset = imported.json()
+    assert dataset["missing_counts"]["reading"] == 1
+    assert dataset["samples"][1]["values"] == {}
+    analysis = client.post("/api/analysis", json={"dataset_id":dataset["id"],"metric":"reading"}).json()
+    assert analysis["summary"]["count"] == 2 and analysis["summary"]["missing_count"] == 1
+    changed = client.patch(f"/api/datasets/{dataset['id']}/metrics/reading/unit", json={"unit":"widgets"})
+    assert changed.json()["unit"] == "widgets"
+    assert client.get(f"/api/datasets/{dataset['id']}").json()["metric_units"]["reading"] == "widgets"
