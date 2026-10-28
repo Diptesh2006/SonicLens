@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import math
+import os
+import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -62,24 +65,90 @@ def seeds() -> dict[str, Dataset]:
     }
 
 
-DATASETS = seeds()
+DB_PATH = os.environ.get("SONICLENS_DB_PATH", os.path.join(os.path.dirname(__file__), "soniclens.db"))
+
+
+def connect_db() -> sqlite3.Connection:
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    return db
+
+
+def init_db() -> None:
+    with connect_db() as db:
+        db.execute("CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        for dataset in seeds().values():
+            db.execute("INSERT OR IGNORE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
+
+
+init_db()
+
+
+def load_datasets() -> dict[str, Dataset]:
+    with connect_db() as db:
+        return {row["id"]: Dataset.model_validate_json(row["payload"]) for row in db.execute("SELECT id,payload FROM datasets")}
+
+
+def save_dataset(dataset: Dataset) -> None:
+    with connect_db() as db:
+        db.execute("INSERT OR REPLACE INTO datasets(id,payload) VALUES(?,?)", (dataset.id, dataset.model_dump_json()))
+
+
+class SessionTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+    analysis_id: str | None = None
+
+
+class VoiceSession(BaseModel):
+    id: str
+    dataset_id: str
+    metric: str
+    mode: Literal["trend", "anomaly", "comparison"]
+    focus_start: int = 0
+    focus_end: int | None = None
+    playback_speed: float = 1
+    turns: list[SessionTurn] = []
+
+
+class QueryRequest(BaseModel):
+    session_id: str
+    dataset_id: str
+    metric: str
+    text: str = Field(min_length=1, max_length=1000)
+    tariff: float = Field(default=8, ge=0)
+
+
+def get_session(session_id: str) -> VoiceSession:
+    with connect_db() as db:
+        row = db.execute("SELECT payload FROM sessions WHERE id=?", (session_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Session not found; start a new exploration")
+    return VoiceSession.model_validate_json(row["payload"])
+
+
+def save_session(session: VoiceSession) -> None:
+    with connect_db() as db:
+        db.execute("INSERT OR REPLACE INTO sessions(id,payload) VALUES(?,?)", (session.id, session.model_dump_json()))
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "datasets": len(DATASETS)}
+    return {"status": "ok", "datasets": len(load_datasets()), "storage": "sqlite"}
 
 
 @app.get("/api/datasets")
 def list_datasets():
-    return list(DATASETS.values())
+    return list(load_datasets().values())
 
 
 @app.get("/api/datasets/{dataset_id}")
 def get_dataset(dataset_id: str):
-    if dataset_id not in DATASETS:
+    datasets = load_datasets()
+    if dataset_id not in datasets:
         raise HTTPException(404, "Dataset not found")
-    return DATASETS[dataset_id]
+    return datasets[dataset_id]
 
 
 @app.post("/api/datasets/import")
@@ -107,13 +176,13 @@ async def import_csv(file: UploadFile = File(...)):
         raise HTTPException(400, f"Could not import CSV: {exc}") from exc
     dataset_id = f"upload-{uuid4().hex[:8]}"
     dataset = Dataset(id=dataset_id, name=file.filename, domain="csv", source="Uploaded CSV", unit="user supplied", metrics=metric_keys, samples=samples)
-    DATASETS[dataset_id] = dataset
+    save_dataset(dataset)
     return dataset
 
 
 @app.post("/api/analysis")
 def analyze(request: AnalyzeRequest):
-    dataset = DATASETS.get(request.dataset_id)
+    dataset = load_datasets().get(request.dataset_id)
     if not dataset:
         raise HTTPException(404, "Dataset not found")
     if request.metric not in dataset.metrics:
@@ -132,15 +201,89 @@ def analyze(request: AnalyzeRequest):
     changes = [{"index": start+i, "timestamp": selected[i].timestamp, "value": v, "delta": round(v-values[i-1], 4)} for i, v in enumerate(values) if i and abs(v-values[i-1]) >= max(mad*3, abs(median)*0.5)]
     peak_index = max(range(len(values)), key=values.__getitem__)
     focus = set(e["index"] for e in events)
+    comparison = None
     if request.mode == "anomaly":
         focus.update(e["index"] for e in changes)
         if not focus:
             focus.add(start+peak_index)
     elif request.mode == "comparison":
         midpoint = start + len(values)//2
-        focus.update(range(start, min(midpoint, end)))
-        focus.update(range(midpoint, end))
+        first, second = values[:midpoint-start], values[midpoint-start:]
+        aligned = min(len(first), len(second))
+        if aligned:
+            diffs = [second[-aligned+i]-first[-aligned+i] for i in range(aligned)]
+            comparison = {"split_index": midpoint, "aligned_points": aligned, "mean_difference": round(statistics.mean(diffs), 4), "absolute_difference": round(abs(statistics.mean(diffs)), 4), "unit": dataset.unit, "period_a": {"start": start, "end": midpoint}, "period_b": {"start": midpoint, "end": end}}
+            focus.update(range(start, min(midpoint, end)))
+            focus.update(range(midpoint, end))
     else:
         focus.update(range(start, end))
     cost = round(sum(values)*request.tariff, 2) if dataset.domain == "energy" and request.metric == "usage_kwh" else None
-    return {"analysis_id": f"ana-{uuid4().hex[:10]}", "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None}, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "evidence": selected}
+    return {"analysis_id": f"ana-{uuid4().hex[:10]}", "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": dataset.unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None}, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "evidence": selected}
+
+
+@app.post("/api/sessions", response_model=VoiceSession)
+def create_session(dataset_id: str, metric: str):
+    dataset = load_datasets().get(dataset_id)
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+    if metric not in dataset.metrics:
+        raise HTTPException(422, "Metric is not present in this dataset")
+    session = VoiceSession(id=f"ses-{uuid4().hex[:10]}", dataset_id=dataset_id, metric=metric, mode="trend", focus_end=len(dataset.samples))
+    save_session(session)
+    return session
+
+
+@app.get("/api/sessions/{session_id}", response_model=VoiceSession)
+def read_session(session_id: str):
+    return get_session(session_id)
+
+
+@app.post("/api/voice/query")
+def query_session(request: QueryRequest):
+    session = get_session(request.session_id)
+    if session.dataset_id != request.dataset_id:
+        # A dataset switch clears old referents and binds subsequent turns to the active source.
+        session.dataset_id, session.metric, session.mode = request.dataset_id, request.metric, "trend"
+        session.focus_start, session.focus_end = 0, None
+    dataset = load_datasets().get(session.dataset_id)
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+    if request.metric not in dataset.metrics:
+        raise HTTPException(422, "Metric is not present in this dataset")
+    text = request.text.strip()
+    normalized = text.casefold()
+    if any(word in normalized for word in ("compare", "difference", "previous day", "yesterday", "compare that")):
+        session.mode = "comparison"
+    elif any(word in normalized for word in ("anomal", "spike", "unusual", "increase sharply", "increased sharply")):
+        session.mode = "anomaly"
+    elif any(word in normalized for word in ("trend", "overall", "everything")):
+        session.mode = "trend"
+    speed_match = __import__("re").search(r"(?:at |speed )?(0\.5|1|1\.5|2)\s*x|slow(?:er|ly)", normalized)
+    if speed_match:
+        session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
+    if "previous day" in normalized or "yesterday" in normalized:
+        session.focus_start = max(0, session.focus_start - 24)
+    end = session.focus_end or len(dataset.samples)
+    result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=session.focus_start, end=end, tariff=request.tariff))
+    session.metric = request.metric
+    session.focus_end = result["range"]["end"]
+    if result["events"]:
+        session.focus_start = result["events"][0]["index"]
+    session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=explain_result(result), analysis_id=result["analysis_id"])])
+    session.turns = session.turns[-40:]
+    save_session(session)
+    return {"session": session, "analysis": result, "answer": explain_result(result), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
+
+
+def explain_result(result: dict) -> str:
+    summary = result["summary"]
+    if result["mode"] == "anomaly":
+        if result["events"]:
+            event = max(result["events"], key=lambda item: item["value"])
+            return f"The selected range has {len(result['events'])} robust outlier event(s). The largest is observation {event['index']}, at {event['value']} {summary['unit']}."
+        return f"No robust outliers were detected in {summary['count']} observations. The peak is {summary['max']} {summary['unit']}."
+    if result["mode"] == "comparison" and result["comparison"]:
+        comparison = result["comparison"]
+        return f"Comparing two equal aligned portions across {comparison['aligned_points']} observations, the second period averaged {comparison['mean_difference']} {summary['unit']} different from the first."
+    cost_text = f" At the supplied tariff, the interval energy cost is ₹{summary['energy_cost']:.2f}." if summary["energy_cost"] is not None else ""
+    return f"Across {summary['count']} observations, the mean was {summary['mean']} {summary['unit']} and the peak was {summary['max']} {summary['unit']}.{cost_text}"

@@ -9,12 +9,13 @@ Phase 1 data vertical slice: first implementation committed; backend tests and w
 - FastAPI health, dataset listing/detail, analysis and CSV import routes.
 - Seeded synthetic energy (168 hourly samples with a known spike) and telemetry (144 samples with correlated latency/error spike).
 - Summary, median/MAD outliers, abrupt changes, evidence rows and configurable energy tariff estimate.
+- SQLite dataset/session persistence; bounded local query intent; aligned two-period comparison result.
 - Next.js workspace with backend chart, metric/mode selection, range control, actual Web Audio sonification, playback cursor/rate/volume and CSV upload.
 - PRD and user supplied master prompt copied to repository.
 
 ## Tests and remaining failures
 
-- Backend: `python -m pytest test_api.py -q` → 4 passed.
+- Backend: `python -m pytest test_api.py -q` → 6 passed (including aligned comparison and persisted session intent).
 - Frontend `npm run typecheck` → pass.
 - Frontend `npm run build` → failed because installed `caniuse-lite/dist/lib/statuses` is missing. `npm install` exits successfully but leaves this package incomplete here.
 - No browser visual or audible verification has been performed yet.
@@ -26,4 +27,4 @@ Phase 1 data vertical slice: first implementation committed; backend tests and w
 1. Restore complete npm package installation in this workspace or a non-synced checkout and rerun build.
 2. Start both processes and inspect browser interaction and sound.
 3. Record evidence and fix any behavior issues.
-4. Continue with SQLite persistence and fuller analytical tools, then context agent and Gnani adapters in subsequent conventional commits.
+4. Continue with durable analysis records, robust context follow-ups and browser checks; then implement provider adapters from verified official Gnani contracts.

@@ -1,4 +1,10 @@
+import os
+import tempfile
 from fastapi.testclient import TestClient
+
+_test_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+_test_db.close()
+os.environ["SONICLENS_DB_PATH"] = _test_db.name
 
 from main import app
 
@@ -30,3 +36,21 @@ def test_csv_import_and_metric_validation():
 def test_invalid_csv_is_actionable():
     result = client.post("/api/datasets/import", files={"file": ("bad.csv", b"x,y\na,1\n", "text/csv")})
     assert result.status_code == 400 and "time column" in result.json()["detail"]
+
+
+def test_comparison_returns_aligned_difference():
+    result = client.post("/api/analysis", json={"dataset_id": "energy-week", "metric": "usage_kwh", "mode": "comparison"}).json()
+    assert result["comparison"]["aligned_points"] == 84
+    assert result["comparison"]["period_a"]["end"] == result["comparison"]["period_b"]["start"]
+    assert isinstance(result["comparison"]["mean_difference"], float)
+
+
+def test_sessions_persist_and_query_updates_analysis():
+    session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
+    response = client.post("/api/voice/query", json={"session_id": session["id"], "dataset_id": "energy-week", "metric": "usage_kwh", "text": "Find unusual spikes"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["analysis"]["mode"] == "anomaly"
+    assert body["answer"] and body["analysis"]["analysis_id"]
+    assert body["session"]["turns"][-1]["analysis_id"] == body["analysis"]["analysis_id"]
+    assert client.get(f"/api/sessions/{session['id']}").json()["id"] == session["id"]

@@ -8,15 +8,15 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `FAIL`, `BLOCKED_EXTERNAL`.
 | DOD-02 | Bounded valid/invalid CSV import | PASS | `python -m pytest test_api.py -q`: valid/import and actionable invalid CSV tests passed; size cap implemented |
 | DOD-03 | Synthetic energy and telemetry datasets | PASS | `python -m pytest test_api.py -q`: expected seeded IDs and health count passed |
 | DOD-04 | Chart shows backend observations and selected metric/range | IN_PROGRESS | Browser verification pending |
-| DOD-05 | Summary, outlier, abrupt-change analysis | IN_PROGRESS | API tests pending execution |
-| DOD-06 | Energy cost uses labeled user tariff and interval kWh | IN_PROGRESS | API test pending execution |
+| DOD-05 | Summary, outlier, abrupt-change and aligned period comparison | PASS | `python -m pytest test_api.py -q`: 6 passed, including comparison alignment/difference evidence |
+| DOD-06 | Energy cost uses labeled user tariff and interval kWh | PASS | `python -m pytest test_api.py -q`: expected computed tariff total matches source observations |
 | DOD-07 | Browser generates data-mapped trend audio | IN_PROGRESS | Manual audio check pending |
 | DOD-08 | Anomaly mode focuses detected intervals | IN_PROGRESS | API and browser checks pending |
 | DOD-09 | Comparison mode uses aligned series observations | NOT_STARTED | — |
 | DOD-10 | Playback controls, focus range, rate, volume | IN_PROGRESS | Browser verification pending |
 | DOD-11 | Chart cursor tracks scheduled notes | IN_PROGRESS | Browser verification pending |
-| DOD-12 | Constrained natural-language intent routes analysis | IN_PROGRESS | Deterministic keyword mapping only; tests pending |
-| DOD-13 | Follow-up context resolution | NOT_STARTED | — |
+| DOD-12 | Constrained natural-language intent routes analysis | IN_PROGRESS | `/api/voice/query` maps bounded phrase families to deterministic tools; fixture test passes |
+| DOD-13 | Follow-up context resolution | IN_PROGRESS | SQLite session stores selected dataset/metric/mode/focus/turns; simple previous-day and slow replay resolution; broader semantics pending |
 | DOD-14 | Results have inspectable evidence IDs and source samples | IN_PROGRESS | API response implemented; test pending |
 | DOD-15 | Authentic server-side Gnani Prisma adapter | NOT_STARTED | Credentials/configuration not inspected beyond environment names |
 | DOD-16 | Authentic server-side Gnani Timbre adapter | NOT_STARTED | Credentials/configuration not inspected beyond environment names |
