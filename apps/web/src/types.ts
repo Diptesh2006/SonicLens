@@ -4,3 +4,21 @@ export type Analysis = { analysis_id: string; mode: string; range: { start: numb
 export type InvestigationStep = { id: string; label: string };
 export type PresentationScene = { scene_id: string; kind: string; title: string; dataset_id: string; analysis_id: string; metric: string; chart_type: "area" | "bar"; interval: { start: number; end: number }; highlight_indices: number[]; evidence_ids: string[]; narration: string; follow_up_actions: string[]; created_at: string };
 export type Presentation = { scene: PresentationScene | null; scenes: PresentationScene[]; steps: InvestigationStep[]; state: string };
+
+type BrowserSpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
+type BrowserSpeechErrorEvent = { error: string };
+interface BrowserSpeechRecognizer {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: BrowserSpeechResultEvent) => void) | null;
+  onerror: ((event: BrowserSpeechErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => BrowserSpeechRecognizer;
+    webkitSpeechRecognition?: new () => BrowserSpeechRecognizer;
+  }
+}
