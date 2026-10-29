@@ -47,4 +47,4 @@ npm run typecheck
 npm run build
 ```
 
-See [PRD.md](PRD.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [GOALS.md](GOALS.md), [PROGRESS.md](PROGRESS.md), [docs/PRESENTATION_ENGINE.md](docs/PRESENTATION_ENGINE.md), [docs/API.md](docs/API.md), [docs/GNANI_SETUP.md](docs/GNANI_SETUP.md) and [docs/DEMO.md](docs/DEMO.md).
+Technical reference: [API](docs/API.md), [architecture](docs/ARCHITECTURE.md), [voice setup](docs/GNANI_SETUP.md), [presentation engine](docs/PRESENTATION_ENGINE.md) and [demo guide](docs/DEMO.md).
