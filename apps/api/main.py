@@ -54,6 +54,7 @@ class AnalyzeRequest(BaseModel):
     start: int = 0
     end: int | None = None
     tariff: float = Field(default=8, ge=0)
+    focus_direction: Literal["increase", "decrease"] | None = None
 
 
 class FocusRequest(BaseModel):
@@ -184,6 +185,7 @@ class QueryRequest(BaseModel):
     metric: str
     text: str = Field(min_length=1, max_length=1000)
     tariff: float = Field(default=8, ge=0)
+    focus_direction: Literal["increase", "decrease"] | None = None
 
 
 class Clarification(BaseModel):
@@ -496,12 +498,34 @@ def analyze(request: AnalyzeRequest):
             focus.update(pair[1] for pair in pairs)
     else:
         focus.update(range(start, end))
+    window = max(2, min(12, len(values) // 10 or 2))
+    directional_insights = {"increase": None, "decrease": None}
+    if len(values) >= window * 2:
+        candidates = []
+        for center in range(window, len(selected) - window + 1):
+            before = [sample.values[request.metric] for sample in selected[center-window:center] if request.metric in sample.values]
+            after = [sample.values[request.metric] for sample in selected[center:center+window] if request.metric in sample.values]
+            if not before or not after:
+                continue
+            delta = statistics.mean(after) - statistics.mean(before)
+            candidates.append({"start_index": start + center - window, "end_index": start + center + window - 1,
+                "start_timestamp": selected[center-window].timestamp, "end_timestamp": selected[center+window-1].timestamp,
+                "before_mean": round(statistics.mean(before), 4), "after_mean": round(statistics.mean(after), 4),
+                "delta": round(delta, 4), "window_size": window})
+        if candidates:
+            directional_insights["increase"] = max(candidates, key=lambda item: item["delta"])
+            directional_insights["decrease"] = min(candidates, key=lambda item: item["delta"])
+    selected_insight = directional_insights[request.focus_direction] if request.focus_direction else None
+    if selected_insight and (selected_insight["delta"] > 0 if request.focus_direction == "increase" else selected_insight["delta"] < 0):
+        focus = set(range(selected_insight["start_index"], selected_insight["end_index"] + 1))
+    else:
+        selected_insight = None
     is_interval_energy = dataset.sampling_kind == "interval_energy" and dataset.metric_units.get(request.metric) == "kWh"
     cost = round(sum(values)*request.tariff, 2) if is_interval_energy else None
     analysis_id = f"ana-{uuid4().hex[:10]}"
     plan_events = [{"index": index, "timestamp": dataset.samples[index].timestamp, "value": dataset.samples[index].values[request.metric]} for index in sorted(focus) if start <= index < end and request.metric in dataset.samples[index].values]
     metric_unit = dataset.metric_units.get(request.metric, dataset.unit)
-    result = {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "missing_count": dataset.missing_counts.get(request.metric, 0), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": metric_unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
+    result = {"analysis_id": analysis_id, "dataset_id": dataset.id, "metric": request.metric, "mode": request.mode, "range": {"start": start, "end": end}, "summary": {"count": len(values), "missing_count": dataset.missing_counts.get(request.metric, 0), "mean": round(statistics.mean(values), 4), "median": round(median, 4), "min": min(values), "max": max(values), "peak_index": start+peak_index, "unit": metric_unit, "energy_cost": cost, "tariff_per_kwh": request.tariff if cost is not None else None, "energy_semantics": "interval kWh multiplied by supplied tariff" if cost is not None else None}, "peaks": peaks, "comparison": comparison, "events": events, "abrupt_changes": changes, "directional_insights": directional_insights, "selected_insight": selected_insight, "requested_direction": request.focus_direction, "focus_indices": sorted(focus), "plan": {"id": f"plan-{uuid4().hex[:10]}", "analysis_id": analysis_id, "mode": request.mode, "metric": request.metric, "events": plan_events, "duration_ms": len(plan_events)*210}, "evidence": selected}
     with connect_db() as db:
         db.execute("INSERT INTO analyses(id,dataset_id,payload) VALUES(?,?,?)", (analysis_id, dataset.id, json.dumps(result, separators=(",", ":"), default=lambda value: value.model_dump() if isinstance(value, BaseModel) else str(value))))
     return result
@@ -623,8 +647,14 @@ def query_session(request: QueryRequest):
         return {"session": session, "analysis": None, "answer": "The measurements show what changed, but they do not identify why it changed.", "clarification": {"needed": True, "prompt": "I can show the evidence around the change. What would you like to inspect?", "choices": ["Find unusual spikes", "Compare with the previous period", "Show the trend"]}, "presentation": presentation_payload(session), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
     if any(term in normalized for term in ("compare", "difference", "previous day", "yesterday", "compare that", "other metric")):
         session.mode = "comparison"
-    elif any(term in normalized for term in ("anomal", "spike", "unusual", "increase sharply", "increased sharply", "increased", "increasing")):
+    elif any(term in normalized for term in ("anomal", "spike", "unusual")):
         session.mode = "anomaly"
+    elif any(term in normalized for term in ("upward", "rising", "growth", "grew", "increase", "increasing", "increased")):
+        session.mode = "trend"
+        request = request.model_copy(update={"focus_direction": "increase"})
+    elif any(term in normalized for term in ("downward", "decline", "falling", "fell", "drop", "decrease", "decreasing", "decreased")):
+        session.mode = "trend"
+        request = request.model_copy(update={"focus_direction": "decrease"})
     elif any(term in normalized for term in ("trend", "overall", "everything", "play all", "overview", "summari")):
         session.mode = "trend"
     elif "cost" in normalized or "bill" in normalized or "expense" in normalized:
@@ -656,7 +686,7 @@ def query_session(request: QueryRequest):
             # Retain the current validated focus; the phrase changes playback intent, not evidence.
             session.playback_speed = 0.5 if "slow" in normalized else session.playback_speed
     session.state = "ANALYZING"
-    result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=start, end=end, tariff=request.tariff))
+    result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode=session.mode, start=start, end=end, tariff=request.tariff, focus_direction=request.focus_direction))
     session.investigation_steps.append(InvestigationStep(id="calculate_analysis", label=f"Calculated {session.mode} analysis for {request.metric}"))
     session.investigation_steps.append(InvestigationStep(id="attach_evidence", label=f"Attached {result['summary']['count']} source readings · {result['analysis_id']}"))
     session.metric = request.metric
@@ -705,6 +735,14 @@ async def speak_text(request: SynthesizeRequest):
 
 def explain_result(result: dict) -> str:
     summary = result["summary"]
+    insight = result.get("selected_insight")
+    if insight:
+        direction = "upward" if insight["delta"] >= 0 else "downward"
+        count = insight["end_index"] - insight["start_index"] + 1
+        return f"The strongest {direction} segment runs from {insight['start_timestamp']} to {insight['end_timestamp']}. Its rolling mean changed from {insight['before_mean']} to {insight['after_mean']} {summary['unit']}, a difference of {insight['delta']}. I highlighted those {count} readings on the chart."
+    if result.get("requested_direction"):
+        direction = "upward" if result["requested_direction"] == "increase" else "downward"
+        return f"I could not find a segment with a clear {direction} change in these {summary['count']} readings. The chart shows the full selected series so you can inspect it."
     if result["mode"] == "anomaly":
         if result["events"]:
             event = max(result["events"], key=lambda item: item["value"])
