@@ -6,7 +6,7 @@ SonicLens is a voice led time series analyst. Speak an analytical goal and it in
 
 Requirements: Python 3.11+, Node.js 20+ and npm. Use two PowerShell terminals from the repository root.
 
-Add your Gnani key to the ignored root `.env` as `GNANI_API_KEY=...` to enable server side Prisma transcription and Timbre narration. The API reads it on startup; never commit it. A safe template is in `.env.example`. Without the key, supported browsers can use built in speech recognition for spoken questions; typed questions are always available.
+Add your Gnani key to the ignored root `.env` as `GNANI_API_KEY=...` to enable server side Prisma transcription and Timbre narration. The API reads it on startup; never commit it. A safe template is in `.env.example`. Without the key, supported browsers use their built in speech recognition and speech synthesis for a local voice conversation; typed questions remain available.
 
 API terminal:
 
@@ -35,7 +35,7 @@ Open <http://localhost:3000>. API health is <http://localhost:8000/api/health>; 
 3. Follow the answer, investigation steps, chart scene and evidence as they update together. Speak again while narration plays to interrupt and redirect it.
 4. Restore an earlier scene from scene history. Open **Optional Audio Lab** for supplementary sonification.
 
-When configured, voice uses server side Gnani Prisma and Timbre. Browser speech recognition is a local input fallback and does not produce spoken narration; use Gnani for the full spoken loop. Analysis uses bounded deterministic tools and does not claim causes unsupported by the measurements. Seeded datasets are synthetic. Energy cost requires confirmed interval kWh and a supplied tariff.
+When configured, voice uses server side Gnani Prisma and Timbre. Without credentials, browser speech recognition and speech synthesis provide a local voice path where supported. Analysis uses bounded deterministic tools and does not claim causes unsupported by the measurements. Seeded datasets are synthetic. Energy cost requires confirmed interval kWh and a supplied tariff.
 
 ## Verify
 
