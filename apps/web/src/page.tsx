@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Bolt, Check, ChevronDown, CircleHelp, Headphones, Mic, Pause, Play, Upload, Volume2, Waves } from "lucide-react";
+import { AudioLines, Bolt, Check, ChevronDown, CircleHelp, Headphones, Mic, Pause, Play, Square, Upload, Volume2, Waves } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Analysis, Dataset, Presentation } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 type Mode = "trend" | "anomaly" | "comparison";
 
-async function capturePcm(onStart: () => void): Promise<{ audioBase64: string; sampleRate: number }> {
+async function capturePcm(stopSignal: Promise<void>): Promise<{ audioBase64: string; sampleRate: number }> {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("This browser cannot access a microphone. Try the typed question option.");
   let stream: MediaStream | undefined;
   let context: AudioContext | undefined;
@@ -33,7 +33,7 @@ async function capturePcm(onStart: () => void): Promise<{ audioBase64: string; s
         const copy = new Float32Array(samples);
         this.port.postMessage({ samples: copy }, [copy.buffer]);
         const elapsed = (currentTime - this.startedAt) * 1000;
-        if ((this.detectedSpeech && (currentTime - this.lastSpeechAt) * 1000 > 900) || elapsed > 10000 || (!this.detectedSpeech && elapsed > 5000)) {
+        if (elapsed > 11500) {
           this.port.postMessage({ done: true, detectedSpeech: this.detectedSpeech });
           return false;
         }
@@ -50,15 +50,17 @@ async function capturePcm(onStart: () => void): Promise<{ audioBase64: string; s
     processor.connect(silent);
     silent.connect(context.destination);
     const chunks: Float32Array[] = [];
-    onStart();
     const detectedSpeech = await new Promise<boolean>((resolve, reject) => {
+      const finish = (heard: boolean) => { processor!.port.onmessage = null; processor!.onprocessorerror = null; resolve(heard); };
+      const timeout = setTimeout(() => finish(chunks.length > 0), 11500);
       processor!.onprocessorerror = () => reject(new Error("Microphone audio processing failed. Try again or use the typed question option."));
       processor!.port.onmessage = event => {
         if (event.data.samples) chunks.push(event.data.samples as Float32Array);
-        if (event.data.done) { processor!.port.onmessage = null; processor!.onprocessorerror = null; resolve(Boolean(event.data.detectedSpeech)); }
+        if (event.data.done) { clearTimeout(timeout); finish(Boolean(event.data.detectedSpeech)); }
       };
+      void stopSignal.then(() => { clearTimeout(timeout); finish(chunks.length > 0); });
     });
-    if (!detectedSpeech) throw new Error("I didn’t catch any speech. Check your microphone and try again.");
+    if (!detectedSpeech || !chunks.length) throw new Error("I didn’t catch any speech. Check your microphone and try again.");
     const sampleCount = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
     const pcm = new Uint8Array(sampleCount * 2);
     let at = 0;
@@ -87,7 +89,7 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>("trend"), [analysis, setAnalysis] = useState<Analysis | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false), [paused, setPaused] = useState(false), [cursor, setCursor] = useState(-1), [speed, setSpeed] = useState(1), [volume, setVolume] = useState(.45), [rangeStart, setRangeStart] = useState(0), [rangeEnd, setRangeEnd] = useState(100);
   const [question, setQuestion] = useState(""), [answer, setAnswer] = useState(""), [clarification, setClarification] = useState<string[]>([]), [sessionId, setSessionId] = useState(""), [tariff, setTariff] = useState(8), [voiceConfigured, setVoiceConfigured] = useState(false), [recording, setRecording] = useState(false), [processingVoice, setProcessingVoice] = useState(false), [transcript, setTranscript] = useState(""), [speechUrl, setSpeechUrl] = useState(""), [presentation, setPresentation] = useState<Presentation | null>(null), [speaking, setSpeaking] = useState(false), [speechSupported, setSpeechSupported] = useState(false), [nativeListening, setNativeListening] = useState(false), [nativeSpeaking, setNativeSpeaking] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null), timerRef = useRef<ReturnType<typeof setInterval> | null>(null), audioRef = useRef<AudioContext | null>(null), gainRef = useRef<GainNode | null>(null), spokenAudioRef = useRef<HTMLAudioElement | null>(null), requestGeneration = useRef(0);
+  const fileRef = useRef<HTMLInputElement>(null), timerRef = useRef<ReturnType<typeof setInterval> | null>(null), audioRef = useRef<AudioContext | null>(null), gainRef = useRef<GainNode | null>(null), spokenAudioRef = useRef<HTMLAudioElement | null>(null), recognitionRef = useRef<InstanceType<NonNullable<Window["SpeechRecognition"]>> | null>(null), captureStopRef = useRef<(() => void) | null>(null), requestGeneration = useRef(0);
   const dataset = datasets.find(d => d.id === activeId);
   useEffect(() => { setSpeechSupported(typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)); }, []);
   const selectDataset = (id: string) => { const next = datasets.find(item => item.id === id); if (next) setMetric(next.metrics[0]); setActiveId(id); };
@@ -153,21 +155,33 @@ export default function Home() {
   const speakLocally = (text:string) => { if (!window.speechSynthesis || !text) return; window.speechSynthesis.cancel(); const utterance=new SpeechSynthesisUtterance(text); utterance.onstart=()=>{setNativeSpeaking(true);setSpeaking(true);}; utterance.onend=()=>{setNativeSpeaking(false);setSpeaking(false);}; utterance.onerror=()=>{setNativeSpeaking(false);setSpeaking(false);}; window.speechSynthesis.speak(utterance); };
   const askQuestion = async (text = question) => { if (!dataset || !sessionId || !text.trim()) return; const generation=++requestGeneration.current; spokenAudioRef.current?.pause(); window.speechSynthesis?.cancel(); setNativeSpeaking(false); setSpeaking(false); setError(""); setClarification([]); setPresentation(null); try { const r = await fetch(`${API}/api/voice/query`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, dataset_id: dataset.id, metric, text, tariff }) }); const body = await r.json(); if (generation !== requestGeneration.current) return; if (!r.ok) throw new Error(body.detail ?? "Could not analyze that request"); setQuestion(text); applyPresentation(body); if(body.clarification?.needed) setClarification(body.clarification.choices); if(!voiceConfigured) speakLocally(body.answer); } catch (e) { if (generation === requestGeneration.current) setError(e instanceof Error ? e.message : "Query failed"); } };
   const askByVoice = async () => {
-    if (!dataset || !sessionId || recording || processingVoice || nativeListening) return;
+    if (recording || nativeListening) {
+      captureStopRef.current?.();
+      captureStopRef.current = null;
+      recognitionRef.current?.stop();
+      setRecording(false); setNativeListening(false);
+      return;
+    }
+    if (!dataset || !sessionId || processingVoice) return;
     if (!voiceConfigured) {
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!Recognition) { setError("Voice input is not available in this browser. Type your question below."); return; }
       const generation=++requestGeneration.current; spokenAudioRef.current?.pause(); window.speechSynthesis?.cancel(); setNativeSpeaking(false); setSpeaking(false); setError(""); setTranscript(""); setSpeechUrl(""); setPresentation(null); stop(); setNativeListening(true);
-      const recognition = new Recognition(); recognition.lang = navigator.language || "en-IN"; recognition.interimResults = false; recognition.maxAlternatives = 1;
-      recognition.onresult = event => { const spoken = event.results[0]?.[0]?.transcript?.trim(); if (spoken && generation === requestGeneration.current) { setNativeListening(false); setTranscript(spoken); setQuestion(spoken); void askQuestion(spoken); } };
+      const recognition = new Recognition(); recognitionRef.current = recognition; recognition.lang = navigator.language || "en-IN"; recognition.interimResults = false; recognition.maxAlternatives = 1;
+      recognition.onresult = event => { const spoken = event.results[0]?.[0]?.transcript?.trim(); if (spoken && generation === requestGeneration.current) { recognitionRef.current = null; setNativeListening(false); setTranscript(spoken); setQuestion(spoken); void askQuestion(spoken); } };
       recognition.onerror = event => { if (generation === requestGeneration.current && event.error !== "aborted") setError(event.error === "not-allowed" ? "Allow microphone access in your browser, or type your question." : "I couldn’t hear that clearly. Try again or type your question."); };
-      recognition.onend = () => { if (generation === requestGeneration.current) setNativeListening(false); };
-      try { recognition.start(); } catch { setNativeListening(false); setError("Could not start voice capture. Try again or type your question."); }
+      recognition.onend = () => { if (generation === requestGeneration.current) { recognitionRef.current = null; setNativeListening(false); } };
+      try { recognition.start(); } catch { recognitionRef.current = null; setNativeListening(false); setError("Could not start voice capture. Try again or type your question."); }
       return;
     }
     const generation=++requestGeneration.current; setError(""); setTranscript(""); setAnswer(""); setSpeechUrl(""); setPresentation(null); setSpeaking(false); setRecording(true); stop(); spokenAudioRef.current?.pause();
+    let resolveStop!: () => void;
+    const stopSignal = new Promise<void>(resolve => { resolveStop = resolve; });
+    captureStopRef.current = resolveStop;
     try {
-      const captured = await capturePcm(() => { setRecording(false); setProcessingVoice(true); });
+      const captured = await capturePcm(stopSignal);
+      if (generation !== requestGeneration.current) return;
+      captureStopRef.current = null; setRecording(false); setProcessingVoice(true);
       const response = await fetch(`${API}/api/voice/speak`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, dataset_id: dataset.id, metric, audio_base64: captured.audioBase64, sample_rate: captured.sampleRate, language_code: "indic-auto", tariff }) });
       const body = await response.json();
       if (generation !== requestGeneration.current) return;
@@ -179,7 +193,7 @@ export default function Home() {
       const spoken = new Audio(url); spokenAudioRef.current = spoken; spoken.onplay=()=>setSpeaking(true); spoken.onended=()=>setSpeaking(false); spoken.onpause=()=>setSpeaking(false);
       try { await spoken.play(); } catch { /* Keep the replay button available if autoplay is blocked. */ }
     } catch (e) { if (generation === requestGeneration.current) setError(e instanceof Error ? e.message : "Voice request failed"); }
-    finally { if (generation === requestGeneration.current) { setRecording(false); setProcessingVoice(false); } }
+    finally { if (generation === requestGeneration.current) { captureStopRef.current = null; setRecording(false); setProcessingVoice(false); } }
   };
   const replayAnswer = async () => { if (!speechUrl) { if (!voiceConfigured) speakLocally(answer); return; } const spoken = new Audio(speechUrl); spokenAudioRef.current = spoken; spoken.onplay=()=>setSpeaking(true); spoken.onended=()=>setSpeaking(false); spoken.onpause=()=>setSpeaking(false); try { await spoken.play(); } catch { setError("Your browser blocked audio. Use the play control in the response card."); } };
   const restoreScene = async (sceneId:string) => { if (!sessionId) return; const generation=++requestGeneration.current; spokenAudioRef.current?.pause(); setSpeaking(false); try { const response=await fetch(`${API}/api/sessions/${sessionId}/scenes/${sceneId}`,{method:"POST"}), body=await response.json(); if(generation!==requestGeneration.current)return; if(!response.ok)throw new Error(body.detail??"Could not restore presentation"); applyPresentation(body); } catch(e) { if(generation===requestGeneration.current)setError(e instanceof Error?e.message:"Could not restore presentation"); } };
@@ -210,7 +224,7 @@ export default function Home() {
             <div className="voice-card-header"><span className="voice-label"><AudioLines size={16}/> SONICLENS VOICE ANALYST</span><span className={`voice-live ${voiceConfigured || speechSupported ? "" : "offline"}`}><i/>{voiceConfigured ? "Gnani voice" : speechSupported ? "Browser voice input" : "Voice unavailable"}</span></div>
             <div className="voice-main">
               <div className="voice-prompt"><h2>{speaking ? "Follow up while I’m speaking." : "What would you like to find out?"}</h2><p>Speak a goal; SonicLens finds the relevant readings, highlights the interval, and explains the evidence aloud. A typed goal is always available.</p><div className="suggested-questions"><span>TRY SAYING</span><p>“Where is the strongest upward growth?”</p><p>“Show the strongest decline.”</p></div></div>
-              <div className="record-column"><button className={`record-button ${recording || nativeListening ? "is-recording" : ""} ${processingVoice ? "is-processing" : ""} ${speaking ? "is-speaking" : ""}`} disabled={recording || nativeListening || processingVoice || !voiceConfigured && !speechSupported} onClick={() => void askByVoice()} aria-label={recording || nativeListening ? "Recording, speak now" : processingVoice ? "Analyzing your question" : speaking ? "Interrupt narration and ask a follow-up" : "Ask a voice question"}>{processingVoice ? <AudioLines size={26}/> : recording || nativeListening ? <AudioLines size={27}/> : speaking ? <AudioLines size={28}/> : <Mic size={28}/>}</button><strong>{recording || nativeListening ? "Listening" : processingVoice ? "Finding your answer" : speaking ? "Interrupt & ask" : voiceConfigured ? "Tap to speak" : speechSupported ? "Speak a question" : "Voice unsupported"}</strong><span>{recording || nativeListening ? "Speak naturally. I’ll stop after your pause." : processingVoice ? "Transcribing and checking your readings…" : speaking ? "Your next question will stop this narration." : voiceConfigured ? "Gnani speech · one tap" : speechSupported ? "Browser speech input · type below anytime" : "Use the question field below"}</span></div>
+              <div className="record-column"><button className={`record-button ${recording || nativeListening ? "is-recording" : ""} ${processingVoice ? "is-processing" : ""} ${speaking ? "is-speaking" : ""}`} disabled={processingVoice || !recording && !nativeListening && !voiceConfigured && !speechSupported} onClick={() => void askByVoice()} aria-label={recording || nativeListening ? "Stop voice recording" : processingVoice ? "Analyzing your question" : speaking ? "Interrupt narration and ask a follow-up" : "Start voice recording"}>{processingVoice ? <AudioLines size={26}/> : recording || nativeListening ? <Square size={22} fill="currentColor"/> : speaking ? <AudioLines size={28}/> : <Mic size={28}/>}</button><strong>{recording || nativeListening ? "Tap to stop" : processingVoice ? "Finding your answer" : speaking ? "Interrupt & ask" : voiceConfigured ? "Tap to start" : speechSupported ? "Start speaking" : "Voice unsupported"}</strong><span>{recording || nativeListening ? "Your question will be analyzed when you stop (max 12 seconds)." : processingVoice ? "Transcribing and checking your readings…" : speaking ? "Starting a new question stops this narration." : voiceConfigured ? "Start and stop when you’re ready" : speechSupported ? "Browser speech · type below anytime" : "Use the question field below"}</span></div>
             </div>
             <form className="typed-question" onSubmit={event => { event.preventDefault(); void askQuestion(); }}><label htmlFor="typed-question">Type a question or follow up</label><div><input id="typed-question" value={question} onChange={event => setQuestion(event.target.value)} placeholder="Find the strongest rise or decline…"/><button type="submit" disabled={!sessionId || !question.trim()}>Ask <span>→</span></button></div></form>
             {(transcript || answer) && <section className="voice-result" aria-live="polite" aria-label="Voice answer"><div className="transcript-row"><span className="result-label">{transcript ? "YOU ASKED" : "YOUR QUESTION"}</span><p>“{transcript || question}”</p></div><div className="answer-row"><div className="answer-avatar"><Waves size={15}/></div><div className="answer-copy"><span className="result-label">SONICLENS · GROUNDED ANSWER</span><p>{answer}</p></div>{(speechUrl || !voiceConfigured && answer) && <button className="listen-again" onClick={() => void replayAnswer()} aria-label={speaking ? "Replay spoken answer" : "Listen to the spoken answer"}>{speaking ? <Pause size={15} fill="currentColor"/> : <Play size={15} fill="currentColor"/>}<span>{nativeSpeaking ? "Speaking" : "Listen"}</span></button>}</div>{analysis && <div className="result-foot"><span><Check size={13}/> Based on {analysis.summary.count} readings</span><span>Evidence {analysis.analysis_id}</span><button onClick={() => void play()} disabled={!analysis.plan.events.length}>Hear this pattern <Play size={12} fill="currentColor"/></button></div>}{clarification.length > 0 && <div className="clarification-options">{clarification.map(choice => <button key={choice} onClick={() => void askQuestion(choice)}>{choice}</button>)}</div>}</section>}

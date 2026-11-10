@@ -16,6 +16,8 @@ interface BrowserSpeechRecognizer {
   onerror: ((event: BrowserSpeechErrorEvent) => void) | null;
   onend: (() => void) | null;
   start(): void;
+  stop(): void;
+  abort(): void;
 }
 declare global {
   interface Window {
