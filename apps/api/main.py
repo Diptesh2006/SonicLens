@@ -156,6 +156,7 @@ class PresentationScene(BaseModel):
     chart_type: Literal["area", "bar"]
     interval: dict[str, int]
     highlight_indices: list[int] = Field(default_factory=list)
+    action: dict = Field(default_factory=dict)
     evidence_ids: list[str] = Field(default_factory=list)
     narration: str
     follow_up_actions: list[str] = Field(default_factory=list)
@@ -307,13 +308,15 @@ def load_analysis(analysis_id: str) -> dict:
     return json.loads(row["payload"])
 
 
-def create_scene(session: VoiceSession, dataset: Dataset, result: dict, kind: SceneKind, narration: str) -> PresentationScene:
+def create_scene(session: VoiceSession, dataset: Dataset, result: dict, kind: SceneKind, narration: str, action: str = "highlight", highlight_indices: list[int] | None = None, interval: dict[str, int] | None = None) -> PresentationScene:
     analysis_id = result["analysis_id"]
     saved = load_analysis(analysis_id)
     if saved.get("dataset_id") != dataset.id or result.get("metric") not in dataset.metrics:
         raise HTTPException(422, "Presentation scene does not match the analyzed dataset")
     valid_indices = set(range(result["range"]["start"], result["range"]["end"]))
-    highlights = [index for index in result["focus_indices"] if index in valid_indices]
+    selected_interval = interval or result["range"]
+    valid_indices = set(range(selected_interval["start"], selected_interval["end"]))
+    highlights = [index for index in (result["focus_indices"] if highlight_indices is None else highlight_indices) if index in valid_indices]
     scene_titles = {
         "dataset_overview": f"Overview · {dataset.name}",
         "trend_inspection": f"Trend · {dataset.name}",
@@ -326,7 +329,9 @@ def create_scene(session: VoiceSession, dataset: Dataset, result: dict, kind: Sc
         scene_id=f"scene-{uuid4().hex[:10]}", kind=kind, title=scene_titles[kind],
         dataset_id=dataset.id, analysis_id=analysis_id, metric=result["metric"],
         chart_type="bar" if kind in {"period_comparison", "numerical_evidence"} else "area",
-        interval=result["range"], highlight_indices=highlights, evidence_ids=[analysis_id],
+        interval=selected_interval, highlight_indices=highlights,
+        action={"type": action, "metric": result["metric"], "mode": result["mode"], "range": selected_interval, "highlight_indices": highlights},
+        evidence_ids=[analysis_id],
         narration=narration, follow_up_actions=["Show exact readings", "Compare with the previous day", "Show the overall trend"],
         created_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -334,14 +339,60 @@ def create_scene(session: VoiceSession, dataset: Dataset, result: dict, kind: Sc
         raise HTTPException(422, "Presentation scene references unknown evidence")
     session.scenes.append(scene)
     session.scenes = session.scenes[-20:]
-    session.current_scene_id = scene.scene_id
-    session.state = "AWAITING_USER"
     return scene
 
 
-def presentation_payload(session: VoiceSession, scene: PresentationScene | None = None) -> dict:
+def build_presentation_sequence(session: VoiceSession, dataset: Dataset, result: dict, focus_kind: SceneKind, answer: str, comparison_result: dict | None = None, spike_index: int | None = None) -> list[dict]:
+    metric = result["metric"]
+    unit = result["summary"]["unit"]
+    start, end = result["range"]["start"], result["range"]["end"]
+    overview = f"First, I inspected {result['summary']['count']} readings for {metric.replace('_', ' ')}. Their average is {result['summary']['mean']} {unit}, and the highest reading is {result['summary']['max']} {unit}."
+    slides: list[dict] = []
+    first = create_scene(session, dataset, result, "dataset_overview", overview, action="overview", highlight_indices=[], interval={"start": start, "end": end})
+    slides.append({"scene": first, "analysis_id": result["analysis_id"]})
+
+    if comparison_result and spike_index is not None:
+        spike = next((event for event in result["events"] if event["index"] == spike_index), None)
+        if spike:
+            focus_text = f"Next, the largest detected spike is at {spike['timestamp']}: {spike['value']} {unit}."
+        else:
+            sample = dataset.samples[spike_index]
+            focus_text = f"Next, the largest abrupt change centers on {sample.timestamp}, at {sample.values[metric]} {unit}."
+        spotlight = create_scene(session, dataset, result, "anomaly_spotlight", focus_text, action="highlight", highlight_indices=[spike_index], interval={"start": max(start, spike_index-2), "end": min(end, spike_index+3)})
+        slides.append({"scene": spotlight, "analysis_id": result["analysis_id"]})
+        comparison = comparison_result["comparison"]
+        compare_text = f"Finally, comparing the {comparison['aligned_points']} readings before and around that spike, the latter period averaged {comparison['mean_difference']} {comparison['unit']} different. The chart marks both aligned periods."
+        comparison_scene = create_scene(session, dataset, comparison_result, "period_comparison", compare_text, action="compare", interval=comparison_result["range"])
+        slides.append({"scene": comparison_scene, "analysis_id": comparison_result["analysis_id"]})
+    else:
+        best = result.get("selected_insight")
+        spotlight_indices = list(range(best["start_index"], best["end_index"] + 1)) if best else list(result["focus_indices"])
+        if not spotlight_indices:
+            spotlight_indices = [result["summary"]["peak_index"]]
+        selected = create_scene(session, dataset, result, focus_kind, answer, action="highlight", highlight_indices=spotlight_indices, interval={"start": start, "end": end})
+        slides.append({"scene": selected, "analysis_id": result["analysis_id"]})
+
+        exact_indices = [item["index"] for item in sorted(result["events"], key=lambda item: item["value"], reverse=True)[:4]]
+        if not exact_indices and result.get("comparison"):
+            pair = max(result["comparison"]["pairs"], key=lambda item: abs(item["delta"]))
+            exact_indices = [pair["index_a"], pair["index_b"]]
+        if not exact_indices:
+            peak = result["summary"]["peak_index"]
+            exact_indices = [max(start, peak-1), peak, min(end-1, peak+1)]
+        exact_indices = sorted(set(exact_indices))
+        evidence_start, evidence_end = max(start, exact_indices[0]-1), min(end, exact_indices[-1]+2)
+        evidence_text = "Exact evidence: " + "; ".join(f"{dataset.samples[index].timestamp}: {dataset.samples[index].values[metric]} {unit}" for index in exact_indices) + "."
+        evidence = create_scene(session, dataset, result, "numerical_evidence", evidence_text, action="evidence", highlight_indices=exact_indices, interval={"start": evidence_start, "end": evidence_end})
+        slides.append({"scene": evidence, "analysis_id": result["analysis_id"]})
+
+    session.current_scene_id = slides[0]["scene"].scene_id
+    session.state = "PRESENTING"
+    return slides
+
+
+def presentation_payload(session: VoiceSession, scene: PresentationScene | None = None, sequence: list[dict] | None = None) -> dict:
     selected = scene or next((item for item in session.scenes if item.scene_id == session.current_scene_id), None)
-    return {"scene": selected, "scenes": session.scenes, "steps": session.investigation_steps, "state": session.state}
+    return {"scene": selected, "scenes": session.scenes, "sequence": sequence or [], "steps": session.investigation_steps, "state": session.state}
 
 
 @app.get("/api/health")
@@ -488,6 +539,8 @@ def analyze(request: AnalyzeRequest):
                     if prior:
                         pairs.append((prior[0], index, prior[1], sample.values[request.metric]))
             else:
+                pairs = [(start+i, end-half+i, left.values[request.metric], right.values[request.metric]) for i,(left,right) in enumerate(zip(first_window,second_window)) if request.metric in left.values and request.metric in right.values]
+            if not pairs and dataset.sampling_kind == "interval_energy":
                 pairs = [(start+i, end-half+i, left.values[request.metric], right.values[request.metric]) for i,(left,right) in enumerate(zip(first_window,second_window)) if request.metric in left.values and request.metric in right.values]
             aligned = len(pairs)
             diffs = [right-left for _,_,left,right in pairs]
@@ -645,7 +698,12 @@ def query_session(request: QueryRequest):
         session.turns = session.turns[-40:]
         save_session(session)
         return {"session": session, "analysis": None, "answer": "The measurements show what changed, but they do not identify why it changed.", "clarification": {"needed": True, "prompt": "I can show the evidence around the change. What would you like to inspect?", "choices": ["Find unusual spikes", "Compare with the previous period", "Show the trend"]}, "presentation": presentation_payload(session), "provider": "deterministic_local_tools", "voice_status": "unconfigured"}
-    if any(term in normalized for term in ("compare", "difference", "previous day", "yesterday", "compare that", "other metric")):
+    composite_request = (any(term in normalized for term in ("spike", "anomal", "unusual", "biggest change"))
+        and any(term in normalized for term in ("compare", "previous", "prior", "before", "versus", "vs"))
+        and any(term in normalized for term in ("explain", "what changed", "tell me", "show me", "analyze", "analyse")))
+    if composite_request:
+        session.mode = "anomaly"
+    elif any(term in normalized for term in ("compare", "difference", "previous day", "yesterday", "compare that", "other metric")):
         session.mode = "comparison"
     elif any(term in normalized for term in ("anomal", "spike", "unusual")):
         session.mode = "anomaly"
@@ -673,6 +731,8 @@ def query_session(request: QueryRequest):
         session.playback_speed = 0.5 if "slow" in normalized else float(speed_match.group(1) or 0.5)
     end = session.focus_end or len(dataset.samples)
     start = session.focus_start
+    if composite_request:
+        start, end = 0, len(dataset.samples)
     compare_previous = "previous day" in normalized or "yesterday" in normalized
     if compare_previous:
         duration = max(1, end-start)
@@ -704,12 +764,29 @@ def query_session(request: QueryRequest):
         scene_kind = "period_comparison"
     else:
         scene_kind = "trend_inspection"
-    session.investigation_steps.append(InvestigationStep(id="prepare_scene", label=f"Prepared {scene_kind.replace('_', ' ')} scene"))
-    scene = create_scene(session, dataset, result, scene_kind, answer)
+    comparison_result = None
+    spike_index = None
+    if composite_request:
+        candidate = max(result["events"], key=lambda item: item["value"]) if result["events"] else None
+        if candidate:
+            spike_index = candidate["index"]
+        elif result["abrupt_changes"]:
+            spike_index = max(result["abrupt_changes"], key=lambda item: abs(item["delta"]))["index"]
+        else:
+            spike_index = result["summary"]["peak_index"]
+        half = 24 if dataset.sampling_kind == "interval_energy" else min(12, max(2, len(dataset.samples)//10))
+        half = min(half, len(dataset.samples)//2)
+        center = max(half, min(spike_index, len(dataset.samples)-half))
+        comparison_result = analyze(AnalyzeRequest(dataset_id=dataset.id, metric=request.metric, mode="comparison", start=center-half, end=center+half, tariff=request.tariff))
+        session.investigation_steps.append(InvestigationStep(id="calculate_analysis", label=f"Compared adjacent periods around reading {spike_index}"))
+        session.investigation_steps.append(InvestigationStep(id="attach_evidence", label=f"Attached {comparison_result['comparison']['aligned_points']} aligned comparison readings · {comparison_result['analysis_id']}"))
+    session.investigation_steps.append(InvestigationStep(id="prepare_scene", label="Prepared a 3-scene evidence presentation"))
+    sequence = build_presentation_sequence(session, dataset, result, scene_kind, answer, comparison_result, spike_index)
+    answer = " ".join(item["scene"].narration for item in sequence)
     session.turns.extend([SessionTurn(role="user", text=text), SessionTurn(role="assistant", text=answer, analysis_id=result["analysis_id"])])
     session.turns = session.turns[-40:]
     save_session(session)
-    return {"session": session, "analysis": result, "answer": answer, "clarification": {"needed": False}, "presentation": presentation_payload(session, scene), "provider": "deterministic_local_tools", "voice_status": "configured" if gnani_ready() else "unconfigured"}
+    return {"session": session, "analysis": result, "answer": answer, "clarification": {"needed": False}, "presentation": presentation_payload(session, sequence=sequence), "provider": "deterministic_local_tools", "voice_status": "configured" if gnani_ready() else "unconfigured"}
 
 
 @app.post("/api/voice/speak")
@@ -723,8 +800,7 @@ async def speak_query(request: SpeakRequest):
     transcript, language = await prisma_transcribe(pcm, request.sample_rate, request.language_code)
     query = QueryRequest(session_id=request.session_id, dataset_id=request.dataset_id, metric=request.metric, text=transcript, tariff=request.tariff)
     result = query_session(query)
-    audio, latency_ms = await timbre_synthesize(result["answer"], language or "auto")
-    return {**result, "provider": "gnani_live", "transcript": transcript, "detected_language": language, "audio_base64": base64.b64encode(audio).decode("ascii"), "tts_latency_ms": latency_ms}
+    return {**result, "provider": "gnani_prisma", "transcript": transcript, "detected_language": language}
 
 
 @app.post("/api/voice/synthesize")

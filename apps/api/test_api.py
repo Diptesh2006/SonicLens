@@ -68,7 +68,9 @@ def test_presentation_scene_is_persisted_and_can_be_restored():
     session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
     first = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Find unusual spikes"}).json()
     second = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Compare with yesterday"}).json()
-    assert len(second["presentation"]["scenes"]) == 2
+    assert len(second["presentation"]["sequence"]) == 3
+    assert len(second["presentation"]["scenes"]) == 6
+    assert [step["scene"]["action"]["type"] for step in second["presentation"]["sequence"]] == ["overview", "highlight", "evidence"]
     restored = client.post(f"/api/sessions/{session['id']}/scenes/{first['presentation']['scene']['scene_id']}")
     assert restored.status_code == 200
     body = restored.json()
@@ -124,17 +126,32 @@ def test_voice_route_rejects_invalid_pcm_before_provider_call():
     transcribe.assert_not_awaited()
 
 
-def test_voice_route_uses_provider_transcript_and_returns_valid_wav():
+def test_voice_route_returns_prisma_transcript_and_scene_sequence():
     session = client.post("/api/sessions", params={"dataset_id": "energy-week", "metric": "usage_kwh"}).json()
     audio = base64.b64encode(bytes(16000)).decode()
-    wav = b"RIFF" + bytes(40)
-    with patch("main.prisma_transcribe", new_callable=AsyncMock, return_value=("Find unusual spikes", "en-IN")), patch("main.timbre_synthesize", new_callable=AsyncMock, return_value=(wav, 321.4)):
+    with patch("main.prisma_transcribe", new_callable=AsyncMock, return_value=("Find unusual spikes", "en-IN")) as transcribe:
         response = client.post("/api/voice/speak", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","audio_base64":audio,"sample_rate":16000})
     assert response.status_code == 200
     assert response.json()["transcript"] == "Find unusual spikes"
     assert response.json()["analysis"]["mode"] == "anomaly"
-    assert base64.b64decode(response.json()["audio_base64"]) == wav
-    assert response.json()["tts_latency_ms"] == 321.4
+    assert response.json()["provider"] == "gnani_prisma"
+    assert len(response.json()["presentation"]["sequence"]) == 3
+    transcribe.assert_awaited_once()
+
+
+def test_composite_spike_previous_period_query_builds_grounded_three_scene_plan_for_both_datasets():
+    for dataset_id, metric in (("energy-week", "usage_kwh"), ("api-telemetry", "latency_ms")):
+        session = client.post("/api/sessions", params={"dataset_id":dataset_id,"metric":metric}).json()
+        response = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":dataset_id,"metric":metric,"text":"Find the biggest spike, compare it with the previous period, and explain what changed"})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        sequence = body["presentation"]["sequence"]
+        assert len(sequence) == 3
+        assert [slide["scene"]["action"]["type"] for slide in sequence] == ["overview", "highlight", "compare"]
+        assert sequence[1]["scene"]["highlight_indices"]
+        comparison = client.get(f"/api/analysis/{sequence[2]['analysis_id']}").json()
+        assert comparison["comparison"]["aligned_points"] > 0
+        assert sequence[2]["scene"]["highlight_indices"] == comparison["focus_indices"]
 
 
 def test_analysis_returns_local_peaks_and_energy_semantics():
