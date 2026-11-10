@@ -24,6 +24,6 @@ Empty endpoint values use the defaults: `wss://api.vachana.ai/stt/v3/stream` for
 
 The browser sends microphone PCM only to the local API. Credentials stay server-side. The UI checks `/api/health` and enables microphone capture only when the API reports the key configured.
 
-Prisma receives 16-bit mono PCM frames paced at the selected sample rate, using `x-api-key-id`, `x-model`, `lang_code`, `x-sample-rate` and `x-format` handshake headers. Browser capture is 16 kHz mono and limited to 12 seconds. Timbre receives the evidence-grounded answer and requests mono 48 kHz WAV; the API validates a RIFF WAV response before returning it.
+Prisma receives raw 16-bit mono PCM in 1,024-byte frames paced every 32 ms at 16 kHz, using `x-api-key-id`, `x-model`, `lang_code`, `x-sample-rate` and `x-format` handshake headers. Browser capture is explicitly resampled to 16 kHz mono and limited to 12 seconds; two seconds of trailing silence lets Prisma VAD finish the spoken turn. The API collects completed transcript segments rather than returning on the first one. Timbre receives the evidence-grounded answer and requests mono 48 kHz WAV; the API validates a RIFF WAV response before returning it.
 
 To try voice, start Uvicorn after editing `.env`, refresh the app, and check that the voice status says “Gnani ready.” Then record a short English prompt. A successful configuration check does not prove the live provider call; model entitlement, language support, network, and account credits still affect the request.

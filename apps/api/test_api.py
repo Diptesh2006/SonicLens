@@ -1,6 +1,8 @@
 import os
 import tempfile
 import base64
+import asyncio
+import json
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
@@ -9,6 +11,7 @@ _test_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _test_db.close()
 os.environ["SONICLENS_DB_PATH"] = _test_db.name
 
+import main
 from main import app
 
 client = TestClient(app)
@@ -79,6 +82,19 @@ def test_presentation_scene_is_persisted_and_can_be_restored():
     assert client.get(f"/api/sessions/{session['id']}").json()["current_scene_id"] == first["presentation"]["scene"]["scene_id"]
 
 
+def test_demo_script_upward_then_decline_keeps_dataset_context_and_focuses_direction():
+    session = client.post("/api/sessions", params={"dataset_id":"energy-week","metric":"usage_kwh"}).json()
+    first = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Find the strongest upward growth in my electricity usage"}).json()
+    assert first["analysis"]["mode"] == "trend"
+    assert first["analysis"]["requested_direction"] == "increase"
+    assert first["presentation"]["sequence"]
+    second = client.post("/api/voice/query", json={"session_id":session["id"],"dataset_id":"energy-week","metric":"usage_kwh","text":"Now show me the strongest decline"}).json()
+    assert second["session"]["dataset_id"] == "energy-week"
+    assert second["analysis"]["mode"] == "trend"
+    assert second["analysis"]["requested_direction"] == "decrease"
+    assert second["presentation"]["sequence"]
+
+
 def test_comparison_pairs_same_offsets_and_exposes_differences():
     result = client.post("/api/analysis", json={"dataset_id": "energy-week", "metric": "usage_kwh", "mode": "comparison", "start": 12, "end": 60}).json()
     comparison = result["comparison"]
@@ -137,6 +153,35 @@ def test_voice_route_returns_prisma_transcript_and_scene_sequence():
     assert response.json()["provider"] == "gnani_prisma"
     assert len(response.json()["presentation"]["sequence"]) == 3
     transcribe.assert_awaited_once()
+
+
+def test_prisma_stream_uses_documented_pcm_frames_and_keeps_all_segments():
+    frames = []
+    messages = [
+        {"type":"transcript","segment_id":"one","segment_index":0,"text":"Find the biggest spike"},
+        {"type":"transcript","segment_id":"two","segment_index":1,"text":"compare it with the previous period"},
+        {"type":"transcript","segment_id":"three","segment_index":2,"text":"and explain what changed"},
+    ]
+    real_sleep = asyncio.sleep
+
+    class FakeSocket:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): return None
+        async def send(self, frame): frames.append(frame)
+        async def recv(self):
+            if messages: return json.dumps(messages.pop(0))
+            await real_sleep(.51)
+            raise asyncio.TimeoutError()
+
+    with patch.dict(os.environ, {"GNANI_API_KEY":"test-key"}), \
+         patch("main.websockets.connect", return_value=FakeSocket()), \
+         patch("main.asyncio.sleep", new_callable=AsyncMock):
+        transcript, language = asyncio.run(main.prisma_transcribe(bytes(8000), 16000, "indic-auto"))
+
+    assert transcript == "Find the biggest spike compare it with the previous period and explain what changed"
+    assert language is None
+    assert frames and all(isinstance(frame, bytes) and len(frame) == 1024 for frame in frames)
+    assert frames[-64:] == [bytes(1024)] * 64
 
 
 def test_composite_spike_previous_period_query_builds_grounded_three_scene_plan_for_both_datasets():

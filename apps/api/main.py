@@ -232,26 +232,53 @@ async def prisma_transcribe(pcm: bytes, sample_rate: int, language_code: str) ->
     detected = None
     try:
         async with websockets.connect(os.getenv("GNANI_PRISMA_URL") or "wss://api.vachana.ai/stt/v3/stream", additional_headers=headers, open_timeout=10, close_timeout=3, max_size=2_000_000) as ws:
+            sending_finished = asyncio.Event()
+            finished_at: float | None = None
             async def send_audio():
-                # 100 ms PCM frames paced at source cadence, as Prisma expects for VAD.
-                chunk_size = sample_rate * 2 // 10
-                for offset in range(0, len(pcm), chunk_size):
-                    chunk = pcm[offset:offset + chunk_size]
-                    await ws.send(chunk)
-                    await asyncio.sleep(len(chunk) / (sample_rate * 2))
-                await ws.send(json.dumps({"type": "commit"}))
+                # Prisma expects fixed 512-sample (1024-byte) mono PCM frames
+                # at 32 ms cadence for 16 kHz audio. Trailing silence lets its
+                # VAD close the utterance; the stream protocol has no commit frame.
+                frame_size = 1024
+                audio = pcm + bytes(sample_rate * 4)  # 2 seconds trailing silence
+                for offset in range(0, len(audio), frame_size):
+                    frame = audio[offset:offset + frame_size]
+                    if len(frame) < frame_size:
+                        frame += bytes(frame_size - len(frame))
+                    await ws.send(frame)
+                    await asyncio.sleep(0.032)
+                nonlocal finished_at
+                finished_at = asyncio.get_running_loop().time()
+                sending_finished.set()
             async def receive_transcript():
                 nonlocal transcript, detected
-                async for message in ws:
+                segments: dict[str, str] = {}
+                while True:
+                    try:
+                        message = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                    except asyncio.TimeoutError:
+                        if sending_finished.is_set() and finished_at is not None and asyncio.get_running_loop().time() - finished_at >= (2 if segments else 6):
+                            break
+                        continue
+                    except websockets.exceptions.ConnectionClosed:
+                        break
                     frame = json.loads(message)
                     if frame.get("type") == "transcript":
-                        transcript = (transcript + " " + frame.get("text", "")).strip()
+                        text = frame.get("text", "").strip()
+                        if text:
+                            # A transcript event is a completed speech segment.
+                            # Keep each segment once; do not return on the first one.
+                            segment_id = str(frame.get("segment_id", frame.get("segment_index", len(segments))))
+                            segments[segment_id] = text
+                            transcript = " ".join(segments.values())
                         detected = frame.get("detected_language_code", detected)
                     elif frame.get("type") == "error":
                         raise HTTPException(502, f"Gnani Prisma error: {frame.get('message', 'transcription failed')}")
-                    if transcript:
-                        break
-            await asyncio.wait_for(asyncio.gather(send_audio(), receive_transcript()), timeout=30)
+            sender = asyncio.create_task(send_audio())
+            try:
+                await asyncio.wait_for(asyncio.gather(sender, receive_transcript()), timeout=30)
+            finally:
+                if not sender.done():
+                    sender.cancel()
     except HTTPException:
         raise
     except (TimeoutError, asyncio.TimeoutError) as exc:

@@ -6,14 +6,14 @@
 2. Choose **Home energy · 7 days** or **API service · 24 hours**. Both are synthetic examples; imported CSV can be used instead.
 3. Use **Reset demo** before recording a fresh walkthrough.
 
-## Three minute walkthrough
+## 60 second walkthrough
 
-1. Tap the microphone and say: “Find the biggest spike, compare it with the previous period, and explain what changed.” Watch the answer and three-scene plan: overview, highlighted spike, and aligned comparison.
-2. While Timbre is narrating, tap the microphone and give a new instruction. Local playback stops immediately and stale scenes are invalidated; the revised transcript is analyzed against the active dataset and metric.
-3. Repeat with both seeded datasets. The energy comparison aligns readings by clock time; API telemetry compares equal adjacent sample windows. Inspect each scene's persisted evidence ID and the highlighted chart interval.
-4. Use **Scene history** to restore the overview or anomaly scene. Confirm its analysis and evidence return with it.
-5. Ask: “Show exact readings.” Inspect the persisted timestamps and values.
-6. Open **Optional Audio Lab** to hear the selected series as supplementary sonification.
+1. **0–12s:** “Every day, we generate huge amounts of data. But understanding it still means staring at dashboards, manually comparing graphs, and searching for patterns. What if we could simply talk to our data?”
+2. **12–20s:** “That's why I built SonicLens, a voice-powered AI data analyst that explains your data while highlighting the actual evidence.”
+3. **20–35s:** Tap the microphone and say: “Find the strongest upward growth in my electricity usage.” Let Timbre narrate while the chart focuses the calculated interval.
+4. **35–45s:** Interrupt with: “Now show me the strongest decline.” Confirm the prior narration stops, the transcript is recognized, and the chart and spoken explanation update.
+5. **45–52s:** Expand **Inspect timestamps and values** to show the exact evidence behind the analysis.
+6. **52–60s:** “Powered by Gnani Prisma for speech recognition and Timbre for natural voice responses, SonicLens makes data analysis conversational. SonicLens — Don't just see your data. Talk to it.”
 
 For the seeded energy data, the anomaly includes the known synthetic 2.35 kWh peak. The API telemetry example uses the same flow for latency and errors. Narration is grounded in calculated observations and does not establish causality.
 

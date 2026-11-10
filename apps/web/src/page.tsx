@@ -18,20 +18,21 @@ async function capturePcm(stopSignal: Promise<void>): Promise<{ audioBase64: str
   let workletUrl: string | undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    context = new AudioContext({ sampleRate: 16000 });
+    // Capture at the device's native rate; explicitly resample below because
+    // browsers may ignore the requested AudioContext sample rate.
+    context = new AudioContext();
     if (context.state === "suspended") await context.resume();
     if (!context.audioWorklet) throw new Error("This browser cannot process microphone audio. Try the typed question option.");
     workletUrl = URL.createObjectURL(new Blob([`class SoniclensCapture extends AudioWorkletProcessor {
-      constructor() { super(); this.startedAt = currentTime; this.lastSpeechAt = currentTime; this.detectedSpeech = false; }
+      constructor() { super(); this.startedAt = currentTime; this.detectedSpeech = false; }
       process(inputs) {
         const samples = inputs[0]?.[0];
         if (!samples) { this.port.postMessage({ done: true, detectedSpeech: false }); return false; }
         let power = 0;
         for (let i = 0; i < samples.length; i += 4) power += samples[i] * samples[i];
         const rms = Math.sqrt(power / Math.ceil(samples.length / 4));
-        if (rms > 0.012) { this.detectedSpeech = true; this.lastSpeechAt = currentTime; }
-        const copy = new Float32Array(samples);
-        this.port.postMessage({ samples: copy }, [copy.buffer]);
+        if (rms > 0.006) this.detectedSpeech = true;
+        this.port.postMessage({ samples: new Float32Array(samples) });
         const elapsed = (currentTime - this.startedAt) * 1000;
         if (elapsed > 11500) {
           this.port.postMessage({ done: true, detectedSpeech: this.detectedSpeech });
@@ -61,10 +62,18 @@ async function capturePcm(stopSignal: Promise<void>): Promise<{ audioBase64: str
       void stopSignal.then(() => { clearTimeout(timeout); finish(chunks.length > 0); });
     });
     if (!detectedSpeech || !chunks.length) throw new Error("I didn’t catch any speech. Check your microphone and try again.");
-    const sampleCount = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const pcm = new Uint8Array(sampleCount * 2);
+    const nativeCount = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const nativeSamples = new Float32Array(nativeCount);
+    let chunkOffset = 0;
+    for (const chunk of chunks) { nativeSamples.set(chunk, chunkOffset); chunkOffset += chunk.length; }
+    const outputCount = Math.floor(nativeCount * 16000 / context.sampleRate);
+    const pcm = new Uint8Array(outputCount * 2);
     let at = 0;
-    for (const chunk of chunks) for (const sample of chunk) {
+    for (let index = 0; index < outputCount; index++) {
+      const sourcePosition = index * context.sampleRate / 16000;
+      const left = Math.floor(sourcePosition);
+      const fraction = sourcePosition - left;
+      const sample = nativeSamples[left] + ((nativeSamples[Math.min(left + 1, nativeCount - 1)] ?? 0) - nativeSamples[left]) * fraction;
       const clamped = Math.max(-1, Math.min(1, sample));
       const value = clamped < 0 ? clamped * 32768 : clamped * 32767;
       pcm[at++] = value & 255;
